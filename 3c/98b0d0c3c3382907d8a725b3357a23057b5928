@@ -1,0 +1,8 @@
+Change-Id: I3c98b0d0c3c3382907d8a725b3357a23057b5928
+Verified+1: Dmitry Shmidt <dimitrysh%android.com@gtempaccount.com>
+Code-Review+2: Iliyan B. Malchev <malchev@google.com>
+Submitted-by: Dmitry Shmidt <dimitrysh%android.com@gtempaccount.com>
+Submitted-at: Wed, 16 Jun 2010 15:08:43 -0700
+Reviewed-on: https://review.source.android.com/15318
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.32

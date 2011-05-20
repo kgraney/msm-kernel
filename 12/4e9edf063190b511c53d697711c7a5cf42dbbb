@@ -1,0 +1,6 @@
+Change-Id: I124e9edf063190b511c53d697711c7a5cf42dbbb
+Code-Review+2: Brian Swetland <swetland@google.com>
+Verified+1: Brian Swetland <swetland@google.com>
+Reviewed-on: https://review.source.android.com/3071
+Project: kernel/msm
+Branch: refs/heads/android-msm-htc-2.6.25

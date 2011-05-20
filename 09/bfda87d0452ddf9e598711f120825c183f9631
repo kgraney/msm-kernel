@@ -1,0 +1,8 @@
+Change-Id: I09bfda87d0452ddf9e598711f120825c183f9631
+Code-Review+2: Paul Eastham <eastham@google.com>
+Verified+1: Ken Sumrall <ksumrall@android.com>
+Submitted-by: Ken Sumrall <ksumrall@android.com>
+Submitted-at: Fri, 23 Jul 2010 15:48:06 -0700
+Reviewed-on: https://review.source.android.com/16004
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.32

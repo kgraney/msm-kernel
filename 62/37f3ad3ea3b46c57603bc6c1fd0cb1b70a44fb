@@ -1,0 +1,8 @@
+Change-Id: I6237f3ad3ea3b46c57603bc6c1fd0cb1b70a44fb
+Code-Review+2: Arve Hjønnevåg <arve@android.com>
+Verified+1: Iliyan B. Malchev <malchev@google.com>
+Submitted-by: Iliyan B. Malchev <malchev@google.com>
+Submitted-at: Thu, 14 Jan 2010 16:56:20 -0700
+Reviewed-on: https://review.source.android.com/13205
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29-nexusone

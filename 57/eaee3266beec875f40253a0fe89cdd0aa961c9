@@ -1,0 +1,8 @@
+Change-Id: I8352d9f63d531b7bec6f2fbc0eb9b78ba03407b9
+Verified+1: Arve Hjønnevåg <arve@android.com>
+Code-Review+2: Dima Zavin <dima@android.com>
+Submitted-by: Arve Hjønnevåg <arve@android.com>
+Submitted-at: Wed, 04 Nov 2009 22:24:52 -0700
+Reviewed-on: https://review.source.android.com/12446
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29

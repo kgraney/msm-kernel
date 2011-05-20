@@ -1,0 +1,8 @@
+Change-Id: I42a0f34763670b689ec8c0d413861d02dfdf8ac5
+Code-Review+2: Dmitry Shmidt <dimitrysh%android.com@gtempaccount.com>
+Verified+1: Dmitry Shmidt <dimitrysh%android.com@gtempaccount.com>
+Submitted-by: Dmitry Shmidt <dimitrysh%android.com@gtempaccount.com>
+Submitted-at: Thu, 14 Jan 2010 18:29:16 -0700
+Reviewed-on: https://review.source.android.com/13187
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29-nexusone

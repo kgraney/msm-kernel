@@ -1,0 +1,13 @@
+Change-Id: Ib160acecb4a321d0f8916f24f0f0082e76b045ce
+Reviewed-on: https://review.source.android.com/12349
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29
+
+Change-Id: I3254dc0ef0ad07b69cb3ae4ddcca8f872b41320a
+Code-Review+2: Nick Pelly <npelly@google.com>
+Verified+1: Nick Pelly <npelly@google.com>
+Submitted-by: Nick Pelly <npelly@google.com>
+Submitted-at: Thu, 29 Oct 2009 19:56:37 -0700
+Reviewed-on: https://review.source.android.com/12348
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29

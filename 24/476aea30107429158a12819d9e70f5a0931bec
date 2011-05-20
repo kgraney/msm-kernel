@@ -1,0 +1,8 @@
+Change-Id: I767698a351bf5e36fb29cd5b8327002dcb2660f0
+Verified+1: Dima Zavin <dima@android.com>
+Code-Review+2: Rebecca Schultz Zavin <rebecca@android.com>
+Submitted-by: Dima Zavin <dima@android.com>
+Submitted-at: Mon, 17 Aug 2009 15:21:35 -0700
+Reviewed-on: https://review.source.android.com/11208
+Project: kernel/msm
+Branch: refs/heads/android-msm-2.6.29
