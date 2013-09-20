@@ -1270,6 +1270,8 @@ struct task_struct {
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
 
+	unsigned int num_to_fault; /* number of system calls until a fault should happen */
+
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
@@ -1836,6 +1838,7 @@ extern int task_free_unregister(struct notifier_block *n);
 #define PF_MEMPOLICY	0x10000000	/* Non-default NUMA mempolicy */
 #define PF_MUTEX_TESTER	0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP	0x40000000	/* Freezer should not count it as freezable */
+#define PF_FAULT_CALL	0x80000000	/* System call faulting is active (tsk->num_to_fault is valid) */
 
 /*
  * Only the _current_ task can read/write to tsk->flags, but other
