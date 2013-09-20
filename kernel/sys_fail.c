@@ -17,3 +17,11 @@ SYSCALL_DEFINE1(fail, int, n)
 
 	return -EINVAL;
 }
+
+long should_fail(void) {
+	return --current->num_to_fault == 0;
+}
+
+long fail_syscall(void) {
+	return -EINVAL;
+}
