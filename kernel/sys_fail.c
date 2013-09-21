@@ -19,7 +19,8 @@ SYSCALL_DEFINE1(fail, int, n)
 }
 
 long should_fail(void) {
-	return --current->num_to_fault == 0;
+	return (current->flags & PF_FAULT_CALL) &&
+			--current->num_to_fault == 0;
 }
 
 long fail_syscall(void) {
