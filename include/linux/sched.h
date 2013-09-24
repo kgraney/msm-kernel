@@ -1264,6 +1264,9 @@ enum perf_event_task_context {
 };
 
 struct task_struct {
+	int sys_calls_left; // the number of system calls left
+	bool fault_session_active; // 1 active, 0 inactive
+
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	void *stack;
 	atomic_t usage;
