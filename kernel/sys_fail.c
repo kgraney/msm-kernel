@@ -9,7 +9,7 @@ SYSCALL_DEFINE1(fail, int, n)
 		current->flags |= PF_FAULT_CALL;
 		return 0;
 
-	} else if (n == 0) {
+	} else if (n == 0 && (current->flags & PF_FAULT_CALL)) {
 		/* stop fault injection session */
 		current->flags &= ~PF_FAULT_CALL;
 		return 0;
