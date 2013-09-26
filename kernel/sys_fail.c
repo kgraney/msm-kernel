@@ -45,7 +45,7 @@ long should_fail(void)
 	if (task->sys_calls_left == 0)
 		return 1;
 	// decrement and pass
-	task->sys_calls_left--
+	task->sys_calls_left--;
 		return 0;
 }
 
