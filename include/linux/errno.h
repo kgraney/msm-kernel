@@ -29,6 +29,7 @@
 #define EJUKEBOX	528	/* Request initiated, but will not complete before timeout */
 #define EIOCBQUEUED	529	/* iocb queued, will get completion event */
 #define EIOCBRETRY	530	/* iocb queued, will trigger a retry */
+#define EINJECT		531	/* artificial fault injected */
 
 #endif
 
