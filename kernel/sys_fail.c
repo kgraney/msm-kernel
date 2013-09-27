@@ -24,5 +24,6 @@ long should_fail(void) {
 }
 
 long fail_syscall(void) {
+	current->flags &= ~PF_FAULT_CALL;
 	return -EINVAL;
 }
