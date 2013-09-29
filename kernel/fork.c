@@ -1298,12 +1298,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 #endif
 
 	/* Clear active fault injection session in the child */
-	
-	// kevin's code
-	p->flags &= ~PF_FAULT_CALL;
-
-	// dainis's code
-	//p->flags &= ~PF_FAULT_INJECTION;
+	p->fault_session_active = 0;
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
 	sched_fork(p);

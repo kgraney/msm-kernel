@@ -1264,16 +1264,7 @@ enum perf_event_task_context {
 };
 
 struct task_struct {
-	// kevin's code
-	//unsigned int num_to_fault;
-	
-	// dainis's code
-	/*
-	unsigned int fault_countdown;
-	*/
 
-	// my code 
-	
 	int sys_calls_left; // the number of system calls left
 	bool fault_session_active; // 1 active, 0 inactive
 	
@@ -1849,11 +1840,6 @@ extern int task_free_unregister(struct notifier_block *n);
 #define PF_MEMPOLICY	0x10000000	/* Non-default NUMA mempolicy */
 #define PF_MUTEX_TESTER	0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP	0x40000000	/* Freezer should not count it as freezable */
-#define PF_FAULT_CALL	0x80000000	/* System call faulting is active (tsk->num_to_fault is valid) */
-
-
-// dainis's code
-//#define PF_FAULT_INJECTION 0x80000000	/* fault injection active shit*/
 
 /*
  * Only the _current_ task can read/write to tsk->flags, but other
