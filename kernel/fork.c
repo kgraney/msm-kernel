@@ -1297,6 +1297,14 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	p->memcg_batch.memcg = NULL;
 #endif
 
+	/* Clear active fault injection session in the child */
+	
+	// kevin's code
+	p->flags &= ~PF_FAULT_CALL;
+
+	// dainis's code
+	//p->flags &= ~PF_FAULT_INJECTION;
+
 	/* Perform scheduler related setup. Assign this task to a CPU. */
 	sched_fork(p);
 
