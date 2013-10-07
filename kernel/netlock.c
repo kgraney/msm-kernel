@@ -1,9 +1,16 @@
 #include <linux/syscalls.h>
 #include <linux/errno.h>
-#include <asm/netlock.h>
+#include <linux/netlock.h>
 
 struct netlock __netlock_reg;
 struct netlock __netlock_excl;
+
+static void __netlock_init(struct netlock* lock, netlock_t type);
+
+void netlock_init(void) {
+        __netlock_init(&__netlock_reg, LOCK_R);
+        __netlock_init(&__netlock_excl, LOCK_E);
+}
 
 void __netlock_init(struct netlock* lock, netlock_t type)
 {

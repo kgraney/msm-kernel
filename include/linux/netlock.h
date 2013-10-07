@@ -25,5 +25,8 @@ struct netlock {
         wait_queue_head_t wait_list;
 };
 
+extern void netlock_init(void);
+
+
 #endif
 
