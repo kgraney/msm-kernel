@@ -18,15 +18,7 @@ int netlock_acquire(netlock_t type);
  */
 int netlock_release(void);
 
-struct netlock {
-        atomic_t count;
-
-        /* List of processes (struct task_struct*) waiting on the lock. */
-        wait_queue_head_t wait_list;
-};
-
 extern void netlock_init(void);
 
 
 #endif
-
