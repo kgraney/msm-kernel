@@ -37,9 +37,11 @@ SYSCALL_DEFINE1(netlock_acquire, netlock_t, type)
         case LOCK_R:
                 /* try to obtain the regular (read) lock */
                 printk(KERN_DEBUG "netlock: attempt at REGULAR lock (pid=%d)", current->pid);
+                break;
         case LOCK_E:
                 /* try to obtain the exclusive (write) lock */
                 printk(KERN_DEBUG "netlock: attempt at EXCLUSIVE lock (pid=%d)", current->pid);
+                break;
         default:
                 return -EINVAL;
         }
