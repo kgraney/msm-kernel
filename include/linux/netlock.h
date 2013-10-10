@@ -20,5 +20,9 @@ int netlock_release(void);
 
 extern void netlock_init(void);
 
+struct __netlock_record {
+        netlock_t type;
+        struct list_head list;
+};
 
 #endif
