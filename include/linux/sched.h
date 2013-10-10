@@ -1264,6 +1264,10 @@ enum perf_event_task_context {
 };
 
 struct task_struct {
+	unsigned long r_count;	// netlock read count
+	unsigned long w_count;	// netlock write count
+	char netlock_type;	// netlock type: r (read), w (write), n (none) 
+
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	void *stack;
 	atomic_t usage;
