@@ -103,6 +103,11 @@ SYSCALL_DEFINE0(netlock_release)
 
         mutex_lock(&__mutex_radix);
         head_record = radix_tree_lookup(&__proc_locks, current->pid);
+        if (head_record == NULL) { /* no lock currently held by process */
+                mutex_unlock(&__mutex_radix);
+                return -EINVAL;
+        }
+
         record = list_entry(head_record->list.prev, struct __netlock_record, list);
         type = record->type;
 
@@ -110,6 +115,7 @@ SYSCALL_DEFINE0(netlock_release)
         kfree(record);
         if (head_record == record) /* list empty, clear radix tree entry */
                 radix_tree_delete(&__proc_locks, current->pid);
+        mutex_unlock(&__mutex_radix);
 
         /* Release lock type the current process last acquired, which is
            determined above. */
