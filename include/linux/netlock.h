@@ -19,6 +19,7 @@ int netlock_acquire(netlock_t type);
 int netlock_release(void);
 
 extern void netlock_init(void);
+extern void exit_netlock(void);
 
 struct __netlock_record {
         netlock_t type;

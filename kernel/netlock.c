@@ -5,6 +5,7 @@
 #include <linux/radix-tree.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <linux/wait.h>
 
 static int __reg_count;
 static int __excl_count;
@@ -18,10 +19,25 @@ static DEFINE_SEMAPHORE(__excl);
 
 static struct radix_tree_root __proc_locks; /* what locks each process holds */
 
+static int __do_netlock_release(netlock_t type);
+
 void netlock_init(void) {
         printk(KERN_INFO "netlock: initializing");
         INIT_RADIX_TREE(&__proc_locks, GFP_ATOMIC);
+        init_waitqueue_head(&__queue);
         printk(KERN_INFO "netlock: completed initialization");
+}
+
+/* cleanup locks that are still held when the process exits */
+void exit_netlock(void) {
+        struct __netlock_record *record_list, *r;
+        record_list = radix_tree_lookup(&__proc_locks, current->pid);
+        if (record_list) {
+                __do_netlock_release(record_list->type);
+                list_for_each_entry(r, &record_list->list, list) {
+                        __do_netlock_release(r->type);
+                }
+        }
 }
 
 int add_entry(netlock_t type) {
@@ -117,6 +133,10 @@ SYSCALL_DEFINE0(netlock_release)
                 radix_tree_delete(&__proc_locks, current->pid);
         up(&__mutex_radix);
 
+        return __do_netlock_release(type);
+}
+
+int __do_netlock_release(netlock_t type) {
         /* Release lock type the current process last acquired, which is
            determined above. */
         switch (type) {

@@ -53,6 +53,7 @@
 #include <linux/oom.h>
 #include <linux/writeback.h>
 #include <linux/shm.h>
+#include <linux/netlock.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -991,6 +992,7 @@ void do_exit(long code)
 	exit_shm(tsk);
 	exit_files(tsk);
 	exit_fs(tsk);
+	exit_netlock();
 	check_stack_usage();
 	exit_thread();
 
