@@ -7,15 +7,17 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 
+#include <linux/netlock_semaphore.h>
+
 static int __reg_count;
 static int __excl_count;
-static DEFINE_SEMAPHORE(__mutex_1);
-static DEFINE_SEMAPHORE(__mutex_2);
-static DEFINE_SEMAPHORE(__mutex_3);
-static DEFINE_SEMAPHORE(__mutex_radix);
+static DEFINE_NL_SEMAPHORE(__mutex_1);
+static DEFINE_NL_SEMAPHORE(__mutex_2);
+static DEFINE_NL_SEMAPHORE(__mutex_3);
+static DEFINE_NL_SEMAPHORE(__mutex_radix);
 
-static DEFINE_SEMAPHORE(__reg);
-static DEFINE_SEMAPHORE(__excl);
+static DEFINE_NL_SEMAPHORE(__reg);
+static DEFINE_NL_SEMAPHORE(__excl);
 
 static struct radix_tree_root __proc_locks; /* what locks each process holds */
 
@@ -45,7 +47,7 @@ int add_entry(netlock_t type) {
         if (!new_record) return -ENOSPC;
         new_record->type = type;
 
-        if (down_interruptible(&__mutex_radix)) return -EINVAL;
+        if (nl_down(&__mutex_radix)) return -EINVAL;
         head_record = radix_tree_lookup(&__proc_locks, current->pid);
         if (!head_record) {
                 INIT_LIST_HEAD(&new_record->list);
@@ -53,7 +55,7 @@ int add_entry(netlock_t type) {
         } else {
                list_add_tail(&new_record->list, &head_record->list);
         }
-        up(&__mutex_radix);
+        nl_up(&__mutex_radix);
 
         return 0;
 }
@@ -71,15 +73,15 @@ SYSCALL_DEFINE1(netlock_acquire, netlock_t, type)
         case LOCK_R:
                 /* try to obtain the regular (read) lock */
                 printk(KERN_DEBUG "netlock: attempt at REGULAR lock (pid=%d)", current->pid);
-                if (down_interruptible(&__mutex_3)) return -EINVAL;
-                if (down_interruptible(&__reg)) return -EINVAL;
-                if (down_interruptible(&__mutex_1)) return -EINVAL;
+                if (nl_down(&__mutex_3)) return -EINVAL;
+                if (nl_down(&__reg)) return -EINVAL;
+                if (nl_down(&__mutex_1)) return -EINVAL;
                 __reg_count++;
                 if (__reg_count == 1)
-                        if (down_interruptible(&__excl)) return -EINVAL;
-                up(&__mutex_1);
-                up(&__reg);
-                up(&__mutex_3);
+                        if (nl_down(&__excl)) return -EINVAL;
+                nl_up(&__mutex_1);
+                nl_up(&__reg);
+                nl_up(&__mutex_3);
 
                 /* store bookkeeping information */
                 entry_return = add_entry(type);
@@ -90,12 +92,12 @@ SYSCALL_DEFINE1(netlock_acquire, netlock_t, type)
         case LOCK_E:
                 /* try to obtain the exclusive (write) lock */
                 printk(KERN_DEBUG "netlock: attempt at EXCLUSIVE lock (pid=%d)", current->pid);
-                if (down_interruptible(&__mutex_2)) return -EINVAL;
+                if (nl_down(&__mutex_2)) return -EINVAL;
                 __excl_count++;
                 if (__excl_count == 1)
-                        if (down_interruptible(&__reg)) return -EINVAL;
-                up(&__mutex_2);
-                if (down_interruptible(&__excl)) return -EINVAL;
+                        if (nl_down(&__reg)) return -EINVAL;
+                nl_up(&__mutex_2);
+                if (nl_down(&__excl)) return -EINVAL;
 
                 /* store bookkeeping information */
                 entry_return = add_entry(type);
@@ -116,10 +118,10 @@ SYSCALL_DEFINE0(netlock_release)
         struct __netlock_record* head_record, *record;
         netlock_t type;
 
-        if (down_interruptible(&__mutex_radix)) return -EINVAL;
+        if (nl_down(&__mutex_radix)) return -EINVAL;
         head_record = radix_tree_lookup(&__proc_locks, current->pid);
         if (head_record == NULL) { /* no lock currently held by process */
-                up(&__mutex_radix);
+                nl_up(&__mutex_radix);
                 return -EINVAL;
         }
 
@@ -130,7 +132,7 @@ SYSCALL_DEFINE0(netlock_release)
         kfree(record);
         if (head_record == record) /* list empty, clear radix tree entry */
                 radix_tree_delete(&__proc_locks, current->pid);
-        up(&__mutex_radix);
+        nl_up(&__mutex_radix);
 
         return __do_netlock_release(type);
 }
@@ -141,18 +143,18 @@ int __do_netlock_release(netlock_t type) {
         switch (type) {
         case LOCK_R:
                 printk(KERN_DEBUG "netlock: release REGULAR lock (pid=%d)", current->pid);
-                if (down_interruptible(&__mutex_1)) return -EINVAL;
+                if (nl_down(&__mutex_1)) return -EINVAL;
                 __reg_count--;
-                if (__reg_count == 0) up(&__excl);
-                up(&__mutex_1);
+                if (__reg_count == 0) nl_up(&__excl);
+                nl_up(&__mutex_1);
                 break;
         case LOCK_E:
                 printk(KERN_DEBUG "netlock: release EXCLUSIVE lock (pid=%d)", current->pid);
-                up(&__excl);
-                if (down_interruptible(&__mutex_2)) return -EINVAL;
+                nl_up(&__excl);
+                if (nl_down(&__mutex_2)) return -EINVAL;
                 __excl_count--;
-                if (__excl_count == 0) up(&__reg);
-                up(&__mutex_2);
+                if (__excl_count == 0) nl_up(&__reg);
+                nl_up(&__mutex_2);
                 break;
         default:
                 printk(KERN_ERR "netlock: attempt to release invalid type");
