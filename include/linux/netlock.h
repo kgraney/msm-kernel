@@ -1,5 +1,5 @@
-#ifndef _ASM_NETLOCK_H
-#define _ASM_NETLOCK_H
+#ifndef _LINUX_NETLOCK_H
+#define _LINUX_NETLOCK_H
 
 enum __netlock_t {
         NET_LOCK_N, /* Placeholder for no lock */
