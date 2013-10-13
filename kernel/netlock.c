@@ -24,7 +24,6 @@ static int __do_netlock_release(netlock_t type);
 void netlock_init(void) {
         printk(KERN_INFO "netlock: initializing");
         INIT_RADIX_TREE(&__proc_locks, GFP_ATOMIC);
-        init_waitqueue_head(&__queue);
         printk(KERN_INFO "netlock: completed initialization");
 }
 
