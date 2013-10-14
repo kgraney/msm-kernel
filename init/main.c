@@ -68,6 +68,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/perf_event.h>
+#include <linux/netlock.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -87,6 +88,7 @@ extern void mca_init(void);
 extern void sbus_init(void);
 extern void prio_tree_init(void);
 extern void radix_tree_init(void);
+extern void netlock_init(void); /* initialization routine for netlocks */
 #ifndef CONFIG_DEBUG_RODATA
 static inline void mark_rodata_ro(void) { }
 #endif
@@ -545,6 +547,7 @@ asmlinkage void __init start_kernel(void)
 	perf_event_init();
 	rcu_init();
 	radix_tree_init();
+	netlock_init();
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
 	init_IRQ();
@@ -636,6 +639,7 @@ asmlinkage void __init start_kernel(void)
 	sfi_init_late();
 
 	ftrace_init();
+	netlock_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
