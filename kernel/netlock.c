@@ -8,12 +8,16 @@
 long test_and_set(volatile long* lock)
 {
 	int old = *lock;
+	/*
 	asm("xchgl %0, %1"
 	    :"=r"(old), "+m"(*lock)	/* output */
 	    :"0"(1)			/* input *
 	    :"memory"			/* can clober anything in memory */
 	    );
+	 */
+	spin_lock(&guard);
 	*lock = 1;
+	spin_unlock(&guard);
 	return old;
 }
 
@@ -66,6 +70,9 @@ int netlock_release(void)
 /* netlock initialization routine */
 void netlock_init(void)
 {
+	/* declare spinlock for test_and_set routine */
+	DEFINE_SPINLOCK(guard);
+	
 	/* declare sleeping locks for network access */
 	static mutex* mutex1;
 	static mutex* mutex2;
