@@ -84,7 +84,8 @@ SYSCALL_DEFINE1(netlock_acquire, netlock_t, type)
 
                 /* store bookkeeping information */
                 entry_return = add_entry(type);
-                if (entry_return < 0) { /* TODO: cleanup and fail */
+                if (entry_return < 0) {
+                        return entry_return;
                 }
                 break;
 
@@ -100,7 +101,8 @@ SYSCALL_DEFINE1(netlock_acquire, netlock_t, type)
 
                 /* store bookkeeping information */
                 entry_return = add_entry(type);
-                if (entry_return < 0) { /* TODO: cleanup and fail */
+                if (entry_return < 0) {
+                        return entry_return;
                 }
                 break;
 
