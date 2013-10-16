@@ -17,26 +17,25 @@ void nl_up(struct nl_semaphore* sem) {
 }
 
 int nl_down(struct nl_semaphore* sem) {
+        DEFINE_WAIT(__wait);
+
         mutex_lock(&sem->m);
         sem->count--;
         if (sem->count <= -1) {
                 mutex_unlock(&sem->m);
-
+                /* wait_event(sem->q, sem->count <= -1); */
                 /* put the process on the wait queue */
-                do {
-                        DEFINE_WAIT(__wait);
-                        add_wait_queue(&sem->q, &__wait);
-                        while (true) {
-                                prepare_to_wait(&sem->q, &__wait, TASK_INTERRUPTIBLE);
-                                if (signal_pending(current)) {
-                                        return -EINTR;
-                                }
-                                if (sem->count <= -1) break;
-                                printk(KERN_DEBUG "netlock: schedule %d", sem->count);
-                                schedule();
+                add_wait_queue(&sem->q, &__wait);
+                while (sem->count <= -1) {
+                        prepare_to_wait(&sem->q, &__wait, TASK_INTERRUPTIBLE);
+                        if (signal_pending(current)) {
+                                printk(KERN_DEBUG "netlock: exiting on signal");
+                                return -EINTR;
                         }
-                        finish_wait(&sem->q, &__wait);
-                } while(0);
+                        printk(KERN_DEBUG "netlock: schedule %d", sem->count);
+                        schedule();
+                }
+                finish_wait(&sem->q, &__wait);
         } else {
                 mutex_unlock(&sem->m);
         }
