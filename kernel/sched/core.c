@@ -4088,7 +4088,7 @@ static bool check_same_owner(struct task_struct *p)
 static int __sched_setscheduler(struct task_struct *p, int policy,
 				const struct sched_param *param, bool user)
 {
-	printk(KERN_DUBUG "mycfs: starting __sched_setscheduler");
+	//printk(KERN_DEBUG "mycfs: starting __sched_setscheduler");
 
 	int retval, oldprio, oldpolicy = -1, on_rq, running;
 	unsigned long flags;
@@ -4793,7 +4793,7 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
 	case SCHED_IDLE:
 		ret = 0;
 		break;
-	case SCHED_MYCFS;/* provision for mycfs class */
+	case SCHED_MYCFS:/* provision for mycfs class */
 		ret =0;
 		break;
 	}
@@ -4820,7 +4820,7 @@ SYSCALL_DEFINE1(sched_get_priority_min, int, policy)
 	case SCHED_BATCH:
 	case SCHED_IDLE:
 		ret = 0;
-	case SCHED_MYCFS;/* provision for mycfs class */
+	case SCHED_MYCFS:/* provision for mycfs class */
 		ret = 0;
 	}
 	return ret;

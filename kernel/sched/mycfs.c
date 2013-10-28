@@ -25,17 +25,23 @@ static void enqueue_task_mycfs(struct rq* rq, struct task_struct* p, int flags)
 static void dequeue_task_mycfs(struct rq* rq, struct task_struct* p, int flags)
 {
 	printk(KERN_DEBUG "mycfs: dequeue_task_mycfs");
+	raw_spin_unlock_irq(&rq->lock);
+	dump_stack();
+	raw_spin_lock_irq(&rq->lock);
 }
 
 static void check_preempt_curr_mycfs(struct rq* rq, struct task_struct* p, int flags)
 {
 	printk(KERN_DEBUG "mycfs: check_preempt_curr");
+	resched_task(rq->idle);
 }
 
 static struct task_struct* pick_next_task_mycfs(struct rq* rq)
 {
 	printk(KERN_DEBUG "mycfs: pick_next_task_mycfs");
-	return current;
+	schedstat_inc(rq, sched_goidle);
+	calc_load_account_idle(rq);
+	return rq->idle;
 }
 
 static void put_prev_task_mycfs(struct rq* rq, struct task_struct* p)
@@ -43,11 +49,13 @@ static void put_prev_task_mycfs(struct rq* rq, struct task_struct* p)
 	printk(KERN_DEBUG "mycfs: put_prev_task_mycfs");
 }
 
+#ifdef CONFIG_SMP
 static int select_task_rq_mycfs(struct task_struct* p, int sd_flag, int flags)
 {
 	printk(KERN_DEBUG "mycfs: select_task_rq_mycfs");
-	return 0;
+	return task_cpu(p);;
 }
+#endif
 
 static void set_curr_task_mycfs(struct rq* rq)
 {
