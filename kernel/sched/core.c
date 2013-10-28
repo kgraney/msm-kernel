@@ -81,7 +81,7 @@
 #include <asm/paravirt.h>
 #endif
 
-#include "sched.h"
+#include "sched.h" /* mycfs init declared here */
 #include "../workqueue_sched.h"
 
 #define CREATE_TRACE_POINTS
@@ -4088,6 +4088,8 @@ static bool check_same_owner(struct task_struct *p)
 static int __sched_setscheduler(struct task_struct *p, int policy,
 				const struct sched_param *param, bool user)
 {
+	printk(KERN_DUBUG "mycfs: starting __sched_setscheduler");
+
 	int retval, oldprio, oldpolicy = -1, on_rq, running;
 	unsigned long flags;
 	const struct sched_class *prev_class;
@@ -4098,16 +4100,20 @@ static int __sched_setscheduler(struct task_struct *p, int policy,
 	BUG_ON(in_interrupt());
 recheck:
 	/* double check policy once rq lock held */
-	if (policy < 0) {
+	if (policy < 0) 
+	{
 		reset_on_fork = p->sched_reset_on_fork;
 		policy = oldpolicy = p->policy;
-	} else {
+	} 
+	else 
+	{
+		printk(KERN_DEBUG "mycfs: policy is greater than or equal to zero");
 		reset_on_fork = !!(policy & SCHED_RESET_ON_FORK);
 		policy &= ~SCHED_RESET_ON_FORK;
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-				policy != SCHED_IDLE)
+				policy != SCHED_IDLE && policy != SCHED_MYCFS)
 			return -EINVAL;
 	}
 
@@ -4787,6 +4793,9 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
 	case SCHED_IDLE:
 		ret = 0;
 		break;
+	case SCHED_MYCFS;/* provision for mycfs class */
+		ret =0;
+		break;
 	}
 	return ret;
 }
@@ -4810,6 +4819,8 @@ SYSCALL_DEFINE1(sched_get_priority_min, int, policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+		ret = 0;
+	case SCHED_MYCFS;/* provision for mycfs class */
 		ret = 0;
 	}
 	return ret;
@@ -7102,6 +7113,7 @@ void __init sched_init(void)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 #endif
 	init_sched_fair_class();
+	init_sched_mycfs_class(); /* initialize mycfs class */
 
 	scheduler_running = 1;
 }

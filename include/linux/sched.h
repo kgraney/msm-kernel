@@ -37,6 +37,7 @@
 #define SCHED_FIFO		1
 #define SCHED_RR		2
 #define SCHED_BATCH		3
+#define SCHED_MYCFS		4 /* policy number for mycfs -- stole SCHED_ISO's space, mwahaha */
 /* SCHED_ISO: reserved but not implemented yet */
 #define SCHED_IDLE		5
 /* Can be ORed in to make sure the process is reverted back to SCHED_NORMAL on fork */

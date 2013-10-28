@@ -879,6 +879,7 @@ extern void update_group_power(struct sched_domain *sd, int cpu);
 extern int update_runtime(struct notifier_block *nfb, unsigned long action, void *hcpu);
 extern void init_sched_rt_class(void);
 extern void init_sched_fair_class(void);
+extern void init_sched_mycfs_class(void); /* declaration of mycfs class */
 
 extern void resched_task(struct task_struct *p);
 extern void resched_cpu(int cpu);
