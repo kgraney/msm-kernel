@@ -36,10 +36,10 @@
 #define SCHED_NORMAL		0
 #define SCHED_FIFO		1
 #define SCHED_RR		2
-#define SCHED_BATCH		3
-#define SCHED_MYCFS		4 /* policy number for mycfs -- stole SCHED_ISO's space, mwahaha */
+#define SCHED_BATCH		3 
 /* SCHED_ISO: reserved but not implemented yet */
 #define SCHED_IDLE		5
+#define SCHED_MYCFS		6
 /* Can be ORed in to make sure the process is reverted back to SCHED_NORMAL on fork */
 #define SCHED_RESET_ON_FORK     0x40000000
 
@@ -1231,6 +1231,8 @@ struct sched_entity {
 	/* rq "owned" by this entity/group: */
 	struct cfs_rq		*my_q;
 #endif
+	
+	struct mycfs_rq* 	mycfs_rq; /* provision for mycfs */
 };
 
 struct sched_rt_entity {

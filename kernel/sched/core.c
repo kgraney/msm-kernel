@@ -4088,8 +4088,6 @@ static bool check_same_owner(struct task_struct *p)
 static int __sched_setscheduler(struct task_struct *p, int policy,
 				const struct sched_param *param, bool user)
 {
-	//printk(KERN_DEBUG "mycfs: starting __sched_setscheduler");
-
 	int retval, oldprio, oldpolicy = -1, on_rq, running;
 	unsigned long flags;
 	const struct sched_class *prev_class;
@@ -4107,7 +4105,7 @@ recheck:
 	} 
 	else 
 	{
-		printk(KERN_DEBUG "mycfs: policy is greater than or equal to zero");
+		printk(KERN_DEBUG "mycfs: setting valid policy");
 		reset_on_fork = !!(policy & SCHED_RESET_ON_FORK);
 		policy &= ~SCHED_RESET_ON_FORK;
 
@@ -7113,7 +7111,7 @@ void __init sched_init(void)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 #endif
 	init_sched_fair_class();
-	init_sched_mycfs_class(); /* initialize mycfs class */
+	//init_sched_mycfs_class(); /* initialize mycfs class */
 
 	scheduler_running = 1;
 }

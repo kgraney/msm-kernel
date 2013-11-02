@@ -287,8 +287,8 @@ struct mycfs_rq {
 	u64 min_vruntime_copy;
 #endif
 
-	struct rb_root tasks_timeline;
-	struct rb_node *rb_leftmost;
+	struct rb_root mycfs_root;	     /* root of the rb_tree */
+	struct rb_node* rb_leftmost; /* left-most node in the rb_tree */
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
@@ -448,6 +448,7 @@ struct rq {
 	u64 nr_switches;
 
 	struct cfs_rq cfs;
+	struct mycfs_rq mycfs;
 	struct rt_rq rt;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -933,6 +934,7 @@ enum cpuacct_stat_index {
 extern const struct sched_class stop_sched_class;
 extern const struct sched_class rt_sched_class;
 extern const struct sched_class fair_sched_class;
+extern const struct sched_class mycfs_sched_class;	/* provision for mycfs */
 extern const struct sched_class idle_sched_class;
 
 
@@ -1001,13 +1003,13 @@ extern void cpuacct_charge(struct task_struct *tsk, u64 cputime);
 #else
 static inline void cpuacct_charge(struct task_struct *tsk, u64 cputime) {}
 #endif
-
+/* increment the number of running resources */
 static inline void inc_nr_running(struct rq *rq)
 {
 	sched_update_nr_prod(cpu_of(rq), rq->nr_running, true);
-	rq->nr_running++;
+	rq->nr_running++;/* increment the number of running processes */
 }
-
+/* decrement the number of running resources */
 static inline void dec_nr_running(struct rq *rq)
 {
 	sched_update_nr_prod(cpu_of(rq), rq->nr_running, false);
@@ -1225,6 +1227,8 @@ static inline void double_rq_unlock(struct rq *rq1, struct rq *rq2)
 }
 
 #endif
+
+extern struct sched_entity* __pick_first_mycfs_entity(struct mycfs_rq* mycfs_rq);
 
 extern struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq);
 extern struct sched_entity *__pick_last_entity(struct cfs_rq *cfs_rq);
