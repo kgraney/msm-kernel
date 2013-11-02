@@ -60,7 +60,8 @@ static void dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct mycfs_rq *mycfs_rq;
 	struct sched_mycfs_entity *ce = &p->ce;
-	printk(KERN_DEBUG "MYCFS: task %d is unrunnable", p->pid);
+	printk(KERN_DEBUG "MYCFS: task %d is unrunnable: %p", p->pid, ce);
+	mycfs_rq = ce->mycfs_rq;
 
 	mycfs_rq->nr_running--;
 }
@@ -86,6 +87,8 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 	struct sched_mycfs_entity *ce;
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 
+	/*printk(KERN_DEBUG "MYCFS: rq=%p", rq);
+	return NULL;*/
 	if (!mycfs_rq->nr_running)
 		return NULL;
 
@@ -119,6 +122,35 @@ static void task_waking_mycfs(struct task_struct *p)
 {
 }
 
+static void set_curr_task_mycfs(struct rq *rq)
+{
+}
+
+static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
+{
+}
+
+static void task_fork_mycfs(struct task_struct *p)
+{
+}
+
+static void
+prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
+{
+}
+
+static void switched_from_mycfs(struct rq *rq, struct task_struct *p)
+{
+}
+
+static void switched_to_mycfs(struct rq *rq, struct task_struct *p)
+{
+}
+
+static unsigned int get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
+{
+	return 0;
+}
 
 const struct sched_class mycfs_sched_class = {
 	.next                   = &idle_sched_class,
@@ -141,5 +173,14 @@ const struct sched_class mycfs_sched_class = {
 
 	.task_waking            = task_waking_mycfs,
 #endif
-	/* TODO: Add other stuff...? */
+
+	.set_curr_task          = set_curr_task_mycfs,
+	.task_tick		= task_tick_mycfs,
+	.task_fork		= task_fork_mycfs,
+
+	.prio_changed		= prio_changed_mycfs,
+	.switched_from		= switched_from_mycfs,
+	.switched_to		= switched_to_mycfs,
+
+	.get_rr_interval	= get_rr_interval_mycfs,
 };

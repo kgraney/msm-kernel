@@ -4061,8 +4061,11 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	p->prio = rt_mutex_getprio(p);
 	if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
-	else
+	else {
 		p->sched_class = &fair_sched_class;
+		if (p->policy == SCHED_MYCFS)
+			p->sched_class = &mycfs_sched_class;
+	}
 	set_load_weight(p);
 }
 
