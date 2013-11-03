@@ -279,6 +279,7 @@ struct mycfs_rq {
 	struct rb_root tasks_timeline;
 	struct rb_node *rb_leftmost;
 	u64 min_vruntime;
+	struct sched_mycfs_entity *curr, *next, *last, *skip;
 };
 
 static inline int rt_bandwidth_enabled(void)
