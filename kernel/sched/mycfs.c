@@ -18,14 +18,21 @@ void init_sched_mycfs_class(void)
 	printk(KERN_DEBUG "MYCFS: initializing");
 }
 
+void init_mycfs_rq(struct mycfs_rq *mycfs_rq)
+{
+	printk(KERN_DEBUG "MYCFS: initializing rq=%p", mycfs_rq);
+	mycfs_rq->tasks_timeline = RB_ROOT;
+	mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
+}
 
-static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce)
+static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce, int flags)
 {
 	struct rb_node **link = &mycfs_rq->tasks_timeline.rb_node;
 	struct rb_node *parent = NULL;
 	struct sched_mycfs_entity *entry;
 	int leftmost = 1;
 
+	printk(KERN_DEBUG "MYCFS: enqueue entity (mycfs_rq=%p, tt=%p, link = %p)", mycfs_rq, &mycfs_rq->tasks_timeline, link);
 	while (*link) {
 		parent = *link;
 		entry = rb_entry(parent, struct sched_mycfs_entity, run_node);
@@ -47,21 +54,19 @@ static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entit
 
 static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
-	struct mycfs_rq *mycfs_rq;
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &p->ce;
 	printk(KERN_DEBUG "MYCFS: task %d is runnable: %p", p->pid, ce);
-	mycfs_rq = ce->mycfs_rq;
 
-	__enqueue_entity(mycfs_rq, ce);
+	__enqueue_entity(mycfs_rq, ce, flags);
 	mycfs_rq->nr_running++;
 }
 
 static void dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
-	struct mycfs_rq *mycfs_rq;
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &p->ce;
 	printk(KERN_DEBUG "MYCFS: task %d is unrunnable: %p", p->pid, ce);
-	mycfs_rq = ce->mycfs_rq;
 
 	mycfs_rq->nr_running--;
 }
@@ -87,8 +92,6 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 	struct sched_mycfs_entity *ce;
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 
-	/*printk(KERN_DEBUG "MYCFS: rq=%p", rq);
-	return NULL;*/
 	if (!mycfs_rq->nr_running)
 		return NULL;
 
@@ -105,7 +108,7 @@ static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 static int
 select_task_rq_mycfs(struct task_struct *p, int sd_flag, int wake_flags)
 {
-	return 0;
+	return smp_processor_id(); /* never change the processor of a process */
 }
 
 static void rq_online_mycfs(struct rq *rq)
@@ -137,6 +140,7 @@ static void task_fork_mycfs(struct task_struct *p)
 static void
 prio_changed_mycfs(struct rq *rq, struct task_struct *p, int oldprio)
 {
+	/* Do nothing; we don't care about priorities! */
 }
 
 static void switched_from_mycfs(struct rq *rq, struct task_struct *p)

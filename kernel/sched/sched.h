@@ -274,6 +274,7 @@ struct cfs_rq {
 };
 
 struct mycfs_rq {
+	struct rq *rq;	/* cpu runqueue to which this mycfs_rq is attached */
 	unsigned long nr_running;
 	struct rb_root tasks_timeline;
 	struct rb_node *rb_leftmost;
@@ -1164,6 +1165,7 @@ extern void print_cfs_stats(struct seq_file *m, int cpu);
 extern void print_rt_stats(struct seq_file *m, int cpu);
 
 extern void init_cfs_rq(struct cfs_rq *cfs_rq);
+extern void init_mycfs_rq(struct mycfs_rq *mycfs_rq);
 extern void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq);
 extern void unthrottle_offline_cfs_rqs(struct rq *rq);
 
