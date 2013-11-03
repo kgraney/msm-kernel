@@ -77,6 +77,7 @@ extern struct mutex sched_domains_mutex;
 
 #include <linux/cgroup.h>
 
+struct mycfs_rq;
 struct cfs_rq;
 struct rt_rq;
 
@@ -199,6 +200,27 @@ extern void init_tg_rt_entry(struct task_group *tg, struct rt_rq *rt_rq,
 struct cfs_bandwidth { };
 
 #endif	/* CONFIG_CGROUP_SCHED */
+
+/* MYCFS-related fields in a runqueue */
+struct mycfs_rq {
+	struct load_weight load;
+	unsigned long nr_running, h_nr_running;
+
+	u64 exec_clock;
+	u64 min_vruntime;
+#ifndef CONFIG_64BIT
+	u64 min_vruntime_copy;
+#endif
+
+	struct rb_root tasks_timeline;
+	struct rb_node *rb_leftmost;
+
+	/*
+	 * 'curr' points to currently running entity on this mycfs_rq.
+	 * It is set to NULL otherwise (i.e when none are currently running).
+	 */
+	struct sched_entity *curr, *next, *last, *skip;
+};
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
@@ -370,6 +392,7 @@ struct rq {
 	unsigned long nr_load_updates;
 	u64 nr_switches;
 
+	struct mycfs_rq mycfs;
 	struct cfs_rq cfs;
 	struct rt_rq rt;
 
