@@ -62,12 +62,25 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	mycfs_rq->nr_running++;
 }
 
+static void __dequeue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce)
+{
+	if (mycfs_rq->rb_leftmost == &ce->run_node) {
+		struct rb_node *next_node;
+
+		next_node = rb_next(&ce->run_node);
+		mycfs_rq->rb_leftmost = next_node;
+	}
+
+	rb_erase(&ce->run_node, &mycfs_rq->tasks_timeline);
+}
+
 static void dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &p->ce;
 	printk(KERN_DEBUG "MYCFS: task %d is unrunnable: %p", p->pid, ce);
 
+	__dequeue_entity(mycfs_rq, ce);
 	mycfs_rq->nr_running--;
 }
 
