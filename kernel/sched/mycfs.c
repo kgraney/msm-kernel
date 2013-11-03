@@ -118,6 +118,7 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	struct sched_mycfs_entity *ce = &p->ce;
 	printk(KERN_DEBUG "MYCFS: task %d is runnable: %p", p->pid, ce);
 
+	ce->mycfs_rq = mycfs_rq;
 	update_curr(rq);
 
 	__enqueue_entity(mycfs_rq, ce, flags);
@@ -179,7 +180,7 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 
 	ce = __pick_first_mycfs_entity(mycfs_rq);
 	p = container_of(ce, struct task_struct, ce);
-	printk(KERN_DEBUG "MYCFS: picking task %d", p->pid);
+	printk(KERN_DEBUG "MYCFS: picking task %d (vr=%llu)", p->pid, p->ce.vruntime);
 	return p;
 }
 
@@ -205,10 +206,15 @@ static void rq_offline_mycfs(struct rq *rq)
 
 static void task_waking_mycfs(struct task_struct *p)
 {
+	struct sched_mycfs_entity *ce = &p->ce;
+	struct mycfs_rq *mycfs_rq = ce->mycfs_rq;
+
+	ce->vruntime -= mycfs_rq->min_vruntime;
 }
 
 static void set_curr_task_mycfs(struct rq *rq)
 {
+	/* Don't need to do anything */
 }
 
 static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
