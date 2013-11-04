@@ -58,7 +58,7 @@ static void update_curr(struct mycfs_rq *mycfs_rq)
 	curr->vruntime += delta_exec; /* TODO: Fix! */
 	update_min_vruntime(mycfs_rq);
 
-	/*printk(KERN_DEBUG "MYCFS: exec_time=%llu vruntime=%llu min=%llu", curr->sum_exec_runtime, curr->vruntime, mycfs_rq->min_vruntime);*/
+	printk(KERN_DEBUG "MYCFS: vruntime=%llu min=%llu", curr->vruntime, mycfs_rq->min_vruntime);
 
 	curr->exec_start = now;
 }
@@ -119,6 +119,7 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	struct sched_mycfs_entity *ce = &p->ce;
 	printk(KERN_DEBUG "MYCFS: task %d is runnable: %p", p->pid, ce);
 
+	mycfs_rq->rq = rq;
 	ce->mycfs_rq = mycfs_rq;
 	update_curr(mycfs_rq);
 
@@ -163,6 +164,10 @@ static void yield_task_mycfs(struct rq *rq)
 static bool
 yield_to_task_mycfs(struct rq *rq, struct task_struct *p, bool preempt)
 {
+	if (unlikely(rq->nr_running == 1))
+		return true;
+
+	update_curr(&rq->mycfs);
 	return true;
 }
 
@@ -216,19 +221,22 @@ static void task_waking_mycfs(struct task_struct *p)
 
 static void set_curr_task_mycfs(struct rq *rq)
 {
-	/* Don't need to do anything */
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	struct sched_mycfs_entity *ce = &rq->curr->ce;
+	mycfs_rq->curr = ce;
 }
 
 static void
 entity_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr, int queued)
 {
-	/* update_curr(rq); */
+	update_curr(mycfs_rq);
 }
 
 static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 {
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &curr->ce;
+	mycfs_rq->rq = rq;
 
 	entity_tick(mycfs_rq, ce, queued);
 	/*struct sched_mycfs_entity *ce = &curr->ce;*/
