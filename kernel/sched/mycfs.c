@@ -58,7 +58,7 @@ static void update_curr(struct mycfs_rq *mycfs_rq)
 	curr->vruntime += delta_exec; /* TODO: Fix! */
 	update_min_vruntime(mycfs_rq);
 
-	printk(KERN_DEBUG "MYCFS: vruntime=%llu min=%llu", curr->vruntime, mycfs_rq->min_vruntime);
+	/*printk(KERN_DEBUG "MYCFS: %d vruntime=%llu min=%llu", container_of(curr, struct task_struct, ce)->pid, curr->vruntime, mycfs_rq->min_vruntime);*/
 
 	curr->exec_start = now;
 }
@@ -174,6 +174,12 @@ yield_to_task_mycfs(struct rq *rq, struct task_struct *p, bool preempt)
 static void
 check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 {
+	struct task_struct *curr = rq->curr;
+	/*struct sched_mycfs_entity *ce = &curr->ce;
+	struct mycfs_rq *mycfs_rq = rq->mycfs;*/
+
+	printk(KERN_DEBUG "MYCFS: preempt");
+	resched_task(curr);
 }
 
 static struct task_struct *pick_next_task_mycfs(struct rq *rq)
@@ -258,11 +264,12 @@ static void switched_from_mycfs(struct rq *rq, struct task_struct *p)
 
 static void switched_to_mycfs(struct rq *rq, struct task_struct *p)
 {
+	resched_task(rq->curr);
 }
 
 static unsigned int get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
 {
-	return 0;
+	return 0; /* This should be fine */
 }
 
 const struct sched_class mycfs_sched_class = {
