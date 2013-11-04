@@ -1264,7 +1264,7 @@ struct sched_mycfs_entity {
 #ifdef CONFIG_SCHEDSTATS
 	struct sched_statistics statistics;
 #endif
-
+	struct mycfs_rq		*mycfs_rq;
 };
 
 /*

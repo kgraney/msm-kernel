@@ -46,6 +46,13 @@ static inline struct mycfs_rq *mycfs_rq_of(struct sched_mycfs_entity *mycfs_se)
 	return &rq->mycfs;
 }
 
+static inline struct rq *rq_of(struct mycfs_rq *mycfs_rq)
+{
+	return container_of(mycfs_rq, struct rq, mycfs);
+}
+
+#define entity_is_task(mycfs_se)	1
+
 void init_sched_mycfs_class(void)
 {
 
@@ -121,8 +128,6 @@ static void __clear_mycfs_buddies_last(struct sched_mycfs_entity *mycfs_se)
 	struct mycfs_rq *mycfs_rq = mycfs_rq_of(mycfs_se);
 	if (mycfs_rq->last == mycfs_se)
 		mycfs_rq->last = NULL;
-	else
-		break;
 }
 
 static void __clear_mycfs_buddies_next(struct sched_mycfs_entity *mycfs_se)
@@ -130,8 +135,6 @@ static void __clear_mycfs_buddies_next(struct sched_mycfs_entity *mycfs_se)
 	struct mycfs_rq *mycfs_rq = mycfs_rq_of(mycfs_se);
 	if (mycfs_rq->next == mycfs_se)
 		mycfs_rq->next = NULL;
-	else
-		break;
 }
 
 static void __clear_mycfs_buddies_skip(struct sched_mycfs_entity *mycfs_se)
@@ -139,8 +142,6 @@ static void __clear_mycfs_buddies_skip(struct sched_mycfs_entity *mycfs_se)
 	struct mycfs_rq *mycfs_rq = mycfs_rq_of(mycfs_se);
 	if (mycfs_rq->skip == mycfs_se)
 		mycfs_rq->skip = NULL;
-	else
-		break;
 }
 
 static void clear_mycfs_buddies(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *mycfs_se)
@@ -167,38 +168,37 @@ static void update_min_vruntime_mycfs(struct mycfs_rq *mycfs_rq)
 	if (mycfs_rq->curr)
 		vruntime = mycfs_rq->curr->vruntime;
 
-	if (mycfs_rq->rb_leftmost) {
+	if (mycfs_rq->rb_leftmost)
+	{
 		struct sched_mycfs_entity *mycfs_se = rb_entry(mycfs_rq->rb_leftmost,
 						   struct sched_mycfs_entity,
 						   run_node);
 		if (!mycfs_rq->curr)
 			vruntime = mycfs_se->vruntime;
 		else
-			vruntime = min_vruntime(vruntime, mycfs_se->vruntime);
+			if(vruntime > mycfs_se->vruntime)
+				vruntime = mycfs_se->vruntime;
 	}
-	mycfs_rq->min_vruntime = max_vruntime(mycfs_rq->min_vruntime, vruntime);
+        if(mycfs_rq->min_vruntime < vruntime)
+		mycfs_rq->min_vruntime = vruntime;
 }
 
-static inline void __update_mycfs_curr(struct mycfs_rq *mycfs_rq, struct sched_entity *curr,
+static inline void __update_mycfs_curr(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr,
 	      unsigned long delta_exec)
 {
-	unsigned long delta_exec_weighted;
-
 	schedstat_set(curr->statistics.exec_max,
 		      max((u64)delta_exec, curr->statistics.exec_max));
 
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq, exec_clock, delta_exec);
-	delta_exec_weighted = calc_delta_fair(delta_exec, curr);
-
-	curr->vruntime += delta_exec_weighted;
+	curr->vruntime += delta_exec;
 	update_min_vruntime_mycfs(mycfs_rq);
 }
 
 static void update_mycfs_curr(struct mycfs_rq *mycfs_rq)
 {
-	struct sched_entity *curr = mycfs_rq->curr;
-	u64 now = rq_of(cfs_rq)->clock_task;
+	struct sched_mycfs_entity *curr = mycfs_rq->curr;
+	u64 now = rq_of(mycfs_rq)->clock_task;
 	unsigned long delta_exec;
 
 	if (unlikely(!curr))
@@ -216,7 +216,6 @@ static void update_mycfs_curr(struct mycfs_rq *mycfs_rq)
 		cpuacct_charge(curtask, delta_exec);
 		account_group_exec_runtime(curtask, delta_exec);
 	}
-	account_cfs_rq_runtime(cfs_rq, delta_exec);
 }
 
 
@@ -234,7 +233,7 @@ static void yield_task_mycfs(struct rq *rq)
 		update_mycfs_curr(mycfs_rq);
 		rq->skip_clock_update = 1;
 	}
-	set_skip_buddy(mycfs_se);
+	set_skip_mycfs_buddy(mycfs_se);
 }
 
 static bool yield_to_task_mycfs(struct rq *rq, struct task_struct *p, bool preempt)
