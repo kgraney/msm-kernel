@@ -19,6 +19,7 @@
  */
 
 unsigned int mycfs_sched_latency = 10000000ULL;
+static unsigned int sched_nr_latency = 8;
 
 const struct sched_class mycfs_sched_class;
 
@@ -52,6 +53,16 @@ static inline struct rq *rq_of(struct mycfs_rq *mycfs_rq)
 }
 
 #define entity_is_task(mycfs_se)	1
+
+#if BITS_PER_LONG == 32
+# define WMULT_CONST	(~0UL)
+#else
+# define WMULT_CONST	(1UL << 32)
+#endif
+
+#define WMULT_SHIFT	32
+
+#define SRR(x, y) (((x) + (1UL << ((y) - 1))) >> (y))
 
 void init_sched_mycfs_class(void)
 {
@@ -284,16 +295,108 @@ static void set_curr_task_mycfs(struct rq *rq)
 
 }
 
+static void update_entity_shares_tick(struct mycfs_rq *mycfs_rq)
+{
+
+}
+
+static u64 __sched_period(unsigned long nr_running)
+{
+	u64 period = sysctl_sched_latency;
+	unsigned long nr_latency = sched_nr_latency;
+
+	if (unlikely(nr_running > nr_latency))
+	{
+		period = sysctl_sched_min_granularity;
+		period *= nr_running;
+	}
+	return period;
+}
+
+static unsigned long
+calc_delta_mine(unsigned long delta_exec, unsigned long weight,
+		struct load_weight *lw)
+{
+	u64 tmp;
+
+	if (likely(weight > (1UL << SCHED_LOAD_RESOLUTION)))
+		tmp = (u64)delta_exec * scale_load_down(weight);
+	else
+		tmp = (u64)delta_exec;
+	if (!lw->inv_weight) {
+		unsigned long w = scale_load_down(lw->weight);
+		if (BITS_PER_LONG > 32 && unlikely(w >= WMULT_CONST))
+			lw->inv_weight = 1;
+		else if (unlikely(!w))
+			lw->inv_weight = WMULT_CONST;
+		else
+			lw->inv_weight = WMULT_CONST / w;
+	}
+	if (unlikely(tmp > WMULT_CONST))
+		tmp = SRR(SRR(tmp, WMULT_SHIFT/2) * lw->inv_weight,
+			WMULT_SHIFT/2);
+	else
+		tmp = SRR(tmp * lw->inv_weight, WMULT_SHIFT);
+	return (unsigned long)min(tmp, (u64)(unsigned long)LONG_MAX);
+}
+
+static u64 sched_slice(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *mycfs_se)
+{
+	u64 slice = __sched_period(mycfs_rq->nr_running + !mycfs_se->on_rq);
+
+	struct load_weight *load;
+	struct load_weight lw;
+
+	mycfs_rq = mycfs_rq_of(mycfs_se);
+	load = &mycfs_rq->load;
+	if (unlikely(!mycfs_se->on_rq))
+	{
+		lw = mycfs_rq->load;
+		update_load_add(&lw, mycfs_se->load.weight);
+		load = &lw;
+	}
+	slice = calc_delta_mine(slice, mycfs_se->load.weight, load);
+	return slice;
+}
+
+static void check_preempt_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr)
+{
+	unsigned long ideal_runtime, delta_exec;
+	struct sched_mycfs_entity *mycfs_se;
+	s64 delta;
+
+	ideal_runtime = sched_slice(mycfs_rq, curr);
+	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
+	if (delta_exec > ideal_runtime) {
+		resched_task(rq_of(mycfs_rq)->curr);
+		clear_mycfs_buddies(mycfs_rq, curr);
+		return;
+	}
+	if (delta_exec < sysctl_sched_min_granularity)
+		return;
+	mycfs_se = __pick_first_mycfs_entity(mycfs_rq);
+	delta = curr->vruntime - mycfs_se->vruntime;
+	if (delta < 0)
+		return;
+	if (delta > ideal_runtime)
+		resched_task(rq_of(mycfs_rq)->curr);
+}
+
+static void entity_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr, int queued)
+{
+	update_mycfs_curr(mycfs_rq);
+	update_entity_shares_tick(mycfs_rq);
+	if (mycfs_rq->nr_running > 1)
+		check_preempt_tick(mycfs_rq, curr);
+}
+
 static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 {
-//	struct mycfs_rq *mycfs_rq;
-//	struct mycfs_sched_entity *mycfs_se = &curr->mycfs_se;
-//
-//	for_each_sched_entity(mycfs_se)
-//	{
-//		mycfs_rq = mycfs_rq_of(se);
-//		entity_tick(mycfs_rq, mycfs_se, queued);
-//	}
+	struct mycfs_rq *mycfs_rq;
+	struct sched_mycfs_entity *mycfs_se = &curr->mycfs_se;
+
+	mycfs_rq = mycfs_rq_of(mycfs_se);
+	entity_tick(mycfs_rq, mycfs_se, queued);
 }
 
 static unsigned int get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
