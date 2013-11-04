@@ -74,11 +74,6 @@ struct sched_mycfs_entity *__pick_first_mycfs_entity(struct mycfs_rq *mycfs_rq)
 	return rb_entry(left, struct sched_mycfs_entity, run_node);
 }
 
-void init_sched_mycfs_class(void)
-{
-	/* printk(KERN_DEBUG "MYCFS: initializing"); */
-}
-
 void init_mycfs_rq(struct mycfs_rq *mycfs_rq)
 {
 	printk(KERN_DEBUG "MYCFS: initializing rq=%p", mycfs_rq);
