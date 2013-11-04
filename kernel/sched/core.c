@@ -3875,7 +3875,10 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
 	p->prio = prio;
 
 	if (running)
+	{
 		p->sched_class->set_curr_task(rq);
+		printk(KERN_DEBUG "mycfs: set_curr_task call in rt_mutex_set_prio core.c:3880");
+	}
 	if (on_rq)
 		enqueue_task(rq, p, oldprio < prio ? ENQUEUE_HEAD : 0);
 
@@ -4063,6 +4066,9 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 		p->sched_class = &rt_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
+		printk(KERN_DEBUG "mycfs: __setscheduler: core.c: 4066");
+		if (p->policy == SCHED_MYCFS)			/* set scheduling class to mycfs */
+			p->sched_class = &mycfs_sched_class;	
 	set_load_weight(p);
 }
 
@@ -4105,7 +4111,6 @@ recheck:
 	} 
 	else 
 	{
-		printk(KERN_DEBUG "mycfs: setting valid policy");
 		reset_on_fork = !!(policy & SCHED_RESET_ON_FORK);
 		policy &= ~SCHED_RESET_ON_FORK;
 
@@ -4232,7 +4237,10 @@ recheck:
 	__setscheduler(rq, p, policy, param->sched_priority);
 
 	if (running)
+	{
 		p->sched_class->set_curr_task(rq);
+		printk(KERN_DEBUG "mycfs: set_curr_task,  __sched_setscheduler, core.c: 4242");
+	}
 	if (on_rq)
 		enqueue_task(rq, p, 0);
 
@@ -4558,7 +4566,7 @@ SYSCALL_DEFINE0(sched_yield)
 	struct rq *rq = this_rq_lock();
 
 	schedstat_inc(rq, yld_count);
-	current->sched_class->yield_task(rq);
+	current->sched_class->yield_task(rq); /* where yield is called */
 
 	/*
 	 * Since we are going to call schedule() anyway, there's
@@ -4792,7 +4800,7 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
 		ret = 0;
 		break;
 	case SCHED_MYCFS:/* provision for mycfs class */
-		ret =0;
+		ret = 0;
 		break;
 	}
 	return ret;
@@ -7011,6 +7019,8 @@ void __init sched_init(void)
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
 		init_cfs_rq(&rq->cfs);
+		printk(KERN_DEBUG "for_each_possbible_cpu(), sched_init, core.c:7022");
+		init_mycfs_rq(&rq->mycfs);
 		init_rt_rq(&rq->rt, rq);
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
@@ -7111,7 +7121,9 @@ void __init sched_init(void)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 #endif
 	init_sched_fair_class();
-	//init_sched_mycfs_class(); /* initialize mycfs class */
+	
+	printk(KERN_DEBUG "mycfs: __init_sched_init, core.c: 7123");
+	init_sched_mycfs_class(); /* initialize mycfs class */
 
 	scheduler_running = 1;
 }
@@ -7374,7 +7386,10 @@ void sched_move_task(struct task_struct *tsk)
 		set_task_rq(tsk, task_cpu(tsk));
 
 	if (unlikely(running))
+	{
 		tsk->sched_class->set_curr_task(rq);
+		printk(KERN_DEBUG "mycfs: set_curr_task called in sched_move_task");
+	}
 	if (on_rq)
 		enqueue_task(rq, tsk, 0);
 
