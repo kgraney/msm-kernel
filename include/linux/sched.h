@@ -1238,6 +1238,8 @@ struct sched_mycfs_entity {
 	u64			exec_start;
 	u64			vruntime;
 	struct mycfs_rq         *mycfs_rq;
+	int                     limit;
+	int                     run_ticks;
 };
 
 struct sched_rt_entity {
@@ -1283,7 +1285,6 @@ struct task_struct {
 	int on_cpu;
 #endif
 	int on_rq;
-	int mycfs_limit;
 
 	int prio, static_prio, normal_prio;
 	unsigned int rt_priority;
