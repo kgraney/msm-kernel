@@ -1,5 +1,6 @@
 #include <linux/rbtree.h>
 #include <linux/sched.h>
+#include <linux/syscalls.h>
 #include "sched.h"
 
 const struct sched_class mycfs_sched_class;
@@ -278,3 +279,12 @@ const struct sched_class mycfs_sched_class = {
 
 	.get_rr_interval	= get_rr_interval_mycfs,
 };
+
+
+SYSCALL_DEFINE2(sched_setlimit, pid_t, pid, int, limit)
+{
+	struct task_struct* ts = find_task_by_vpid(pid);
+	ts->mycfs_limit = limit;
+	printk(KERN_DEBUG "MYCFS: setlimit %d to %d", pid, limit);
+	return 0;
+}

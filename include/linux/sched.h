@@ -1283,6 +1283,7 @@ struct task_struct {
 	int on_cpu;
 #endif
 	int on_rq;
+	int mycfs_limit;
 
 	int prio, static_prio, normal_prio;
 	unsigned int rt_priority;
