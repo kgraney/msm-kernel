@@ -1240,6 +1240,7 @@ struct sched_mycfs_entity {
 	struct mycfs_rq         *mycfs_rq;
 	int                     limit;
 	int                     run_ticks;
+	unsigned int            on_rq;
 };
 
 struct sched_rt_entity {

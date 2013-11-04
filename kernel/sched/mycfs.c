@@ -81,7 +81,7 @@ void init_mycfs_rq(struct mycfs_rq *mycfs_rq)
 	mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
 }
 
-static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce, int flags)
+static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce)
 {
 	struct rb_node **link = &mycfs_rq->tasks_timeline.rb_node;
 	struct rb_node *parent = NULL;
@@ -112,6 +112,9 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &p->ce;
+	if (ce->on_rq)
+		return;
+
 	printk(KERN_DEBUG "MYCFS: task %d is runnable: %p", p->pid, ce);
 
 	mycfs_rq->rq = rq;
@@ -120,7 +123,8 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	ce->vruntime += mycfs_rq->min_vruntime;
 	update_curr(mycfs_rq);
 
-	__enqueue_entity(mycfs_rq, ce, flags);
+	__enqueue_entity(mycfs_rq, ce);
+	ce->on_rq = 1;
 	mycfs_rq->nr_running++;
 }
 
@@ -143,6 +147,7 @@ static void dequeue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	printk(KERN_DEBUG "MYCFS: task %d is unrunnable: %p", p->pid, ce);
 
 	__dequeue_entity(mycfs_rq, ce);
+	ce->on_rq = 0;
 	mycfs_rq->nr_running--;
 	update_min_vruntime(mycfs_rq);
 }
@@ -161,6 +166,10 @@ static void yield_task_mycfs(struct rq *rq)
 static bool
 yield_to_task_mycfs(struct rq *rq, struct task_struct *p, bool preempt)
 {
+	struct sched_mycfs_entity *ce = &p->ce;
+	if (!ce->on_rq)
+		return false;
+
 	if (unlikely(rq->nr_running == 1))
 		return true;
 
@@ -198,6 +207,13 @@ check_preempt_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr)
 		resched_task(mycfs_rq->rq->curr);
 }
 
+static void
+set_next_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce)
+{
+	/*if (ce->on_rq)
+		__dequeue_entity(mycfs_rq, ce);*/
+	mycfs_rq->curr = ce;
+}
 
 static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 {
@@ -218,6 +234,7 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 	}
 
 	ce = __pick_first_mycfs_entity(mycfs_rq);
+	set_next_entity(mycfs_rq, ce);
 	p = container_of(ce, struct task_struct, ce);
 	printk(KERN_DEBUG "MYCFS: picking task %d (vr=%llu)", p->pid, p->ce.vruntime);
 	return p;
@@ -225,6 +242,13 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 
 static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
+	/* struct sched_mycfs_entity *ce = &prev->ce; */
+	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	if (prev->on_rq) {
+		update_curr(mycfs_rq);
+		/* __enqueue_entity(mycfs_rq, ce); */
+	}
+	mycfs_rq->curr = NULL;
 }
 
 static int
@@ -255,9 +279,7 @@ static void set_curr_task_mycfs(struct rq *rq)
 {
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &rq->curr->ce;
-	/*if (container_of(ce, struct task_struct, ce)->on_rq)
-		__dequeue_entity(mycfs_rq, ce);*/
-	mycfs_rq->curr = ce;
+	set_next_entity(mycfs_rq, ce);
 }
 
 static void
@@ -273,6 +295,7 @@ static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &curr->ce;
 	u64 now = rq->clock_task;
+	return;
 
 	ce->run_ticks++;
 	if (ce->run_ticks == 10) { /* edge of 100 ms period */
@@ -311,6 +334,9 @@ static void switched_from_mycfs(struct rq *rq, struct task_struct *p)
 
 static void switched_to_mycfs(struct rq *rq, struct task_struct *p)
 {
+	if(!p->ce.on_rq)
+		return;
+
 	resched_task(rq->curr);
 }
 
