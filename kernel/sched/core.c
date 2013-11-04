@@ -4062,7 +4062,11 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
 	else
+	{
 		p->sched_class = &fair_sched_class;
+		if(p->policy == SCHED_MYCFS)
+			p->sched_class = &mycfs_sched_class;
+	}
 	set_load_weight(p);
 }
 
@@ -4784,6 +4788,7 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
 		break;
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
+	case SCHED_MYCFS:
 	case SCHED_IDLE:
 		ret = 0;
 		break;
@@ -4809,6 +4814,7 @@ SYSCALL_DEFINE1(sched_get_priority_min, int, policy)
 		break;
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
+	case SCHED_MYCFS:
 	case SCHED_IDLE:
 		ret = 0;
 	}
@@ -7001,6 +7007,7 @@ void __init sched_init(void)
 		rq->nr_running = 0;
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
+                init_mycfs_rq(&rq->mycfs);
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt, rq);
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -7102,6 +7109,7 @@ void __init sched_init(void)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 #endif
 	init_sched_fair_class();
+	init_sched_mycfs_class();
 
 	scheduler_running = 1;
 }
