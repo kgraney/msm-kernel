@@ -3,7 +3,11 @@
 #include <linux/syscalls.h>
 #include "sched.h"
 
+unsigned int sysctl_sched_latency = 10000000ULL; /* 10 ms schedule latency */
 const struct sched_class mycfs_sched_class;
+
+static void
+set_next_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce);
 
 static inline u64 max_vruntime(u64 min_vruntime, u64 vruntime)
 {
@@ -181,11 +185,16 @@ static void
 check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 {
 	struct task_struct *curr = rq->curr;
-	/*struct sched_mycfs_entity *ce = &curr->ce;
-	struct mycfs_rq *mycfs_rq = rq->mycfs;*/
+	struct sched_mycfs_entity *ce = &curr->ce, *pce = &p->ce;
+	/* struct mycfs_rq *mycfs_rq = &rq->mycfs; */
+
+	if (unlikely(ce == pce))
+		return;
 
 	printk(KERN_DEBUG "MYCFS: preempt");
+	/*__enqueue_entity(mycfs_rq, ce); */
 	resched_task(curr);
+	/* set_next_entity(mycfs_rq, &p->ce); */
 }
 
 static void
@@ -194,9 +203,12 @@ check_preempt_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr)
 	struct sched_mycfs_entity *ce;
 	s64 delta;
 
+	printk(KERN_DEBUG "MYCFS: fo %d %d", curr->limit, curr->run_ticks);
 	/* reschedule if portion of 100 ms slice exceeded */
-	if (curr->limit && curr->run_ticks >= curr->limit)
+	if (curr->limit && curr->run_ticks >= curr->limit) {
+		printk(KERN_DEBUG "MYCFS: tick exceeded %d", curr->run_ticks);
 		resched_task(mycfs_rq->rq->curr);
+	}
 
 	ce = __pick_first_mycfs_entity(mycfs_rq);
 	delta = curr->vruntime - ce->vruntime;
@@ -242,11 +254,11 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 
 static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
-	/* struct sched_mycfs_entity *ce = &prev->ce; */
+	/*struct sched_mycfs_entity *ce = &prev->ce; */
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	if (prev->on_rq) {
 		update_curr(mycfs_rq);
-		/* __enqueue_entity(mycfs_rq, ce); */
+		/*__enqueue_entity(mycfs_rq, ce);*/
 	}
 	mycfs_rq->curr = NULL;
 }
@@ -319,6 +331,7 @@ static void task_fork_mycfs(struct task_struct *p)
 
 	if (curr)
 		ce->vruntime = curr->vruntime;
+	resched_task(mycfs_rq->rq->curr);
 	ce->vruntime -= mycfs_rq->min_vruntime;
 }
 

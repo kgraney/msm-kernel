@@ -1731,6 +1731,13 @@ static void __sched_fork(struct task_struct *p)
 	p->se.vruntime			= 0;
 	INIT_LIST_HEAD(&p->se.group_node);
 
+	p->ce.exec_start		= 0;
+	p->ce.on_rq                     = 0;
+	p->ce.run_ticks                 = 0;
+	/* limit and vruntime are inherited */
+	p->ce.limit = current->ce.limit;
+	p->ce.vruntime = current->ce.vruntime;
+
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
