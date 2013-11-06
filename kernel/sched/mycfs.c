@@ -9,7 +9,7 @@
 #include <linux/slab.h>
 #include <linux/profile.h>
 #include <linux/interrupt.h>
-
+#include <linux/syscalls.h>
 #include <trace/events/sched.h>
 
 #include "sched.h"
@@ -71,6 +71,7 @@ void init_sched_mycfs_class(void)
 
 void init_mycfs_rq(struct mycfs_rq *mycfs_rq)
 {
+	printk(KERN_DEBUG "Initializing mycfs_rq=%p", mycfs_rq);
 	mycfs_rq->tasks_timeline = RB_ROOT;
 	mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
 }
@@ -285,14 +286,39 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 	return ts_ptr;
 }
 
+static void put_prev_mycfs_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *prev)
+{
+	if (prev->on_rq)
+		update_mycfs_curr(mycfs_rq);
+	mycfs_rq->curr = NULL;
+}
+
 static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
+	struct sched_mycfs_entity *mycfs_se = &prev->mycfs_se;
+	struct mycfs_rq *mycfs_rq;
 
+	mycfs_rq = mycfs_rq_of(mycfs_se);
+	put_prev_mycfs_entity(mycfs_rq, mycfs_se);
+}
+
+static void
+set_next_mycfs_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *mycfs_se)
+{
+	if (mycfs_se->on_rq)
+	{
+		__dequeue_mycfs_entity(mycfs_rq, mycfs_se);
+	}
+	mycfs_rq->curr = mycfs_se;
+	mycfs_se->prev_sum_exec_runtime = mycfs_se->sum_exec_runtime;
 }
 
 static void set_curr_task_mycfs(struct rq *rq)
 {
+	struct sched_mycfs_entity *mycfs_se = &(rq->curr->mycfs_se);
+	struct mycfs_rq *mycfs_rq = mycfs_rq_of(mycfs_se);
 
+	set_next_mycfs_entity(mycfs_rq, mycfs_se);
 }
 
 static void update_entity_shares_tick(struct mycfs_rq *mycfs_rq)
