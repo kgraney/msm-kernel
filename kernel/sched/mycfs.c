@@ -3,7 +3,6 @@
 #include <linux/syscalls.h>
 #include "sched.h"
 
-unsigned int sysctl_sched_latency = 10000000ULL; /* 10 ms schedule latency */
 const struct sched_class mycfs_sched_class;
 
 static void
