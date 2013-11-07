@@ -61,27 +61,32 @@ static void update_curr(struct mycfs_rq *mycfs_rq)
 	curr->vruntime += delta_exec; /* TODO: Fix! */
 	update_min_vruntime(mycfs_rq);
 
-	/*printk(KERN_DEBUG "MYCFS: %d vruntime=%llu min=%llu", container_of(curr, struct task_struct, ce)->pid, curr->vruntime, mycfs_rq->min_vruntime);*/
-
+	/*printk(KERN_DEBUG "MYCFS: update_curr, %d vruntime=%llu min=%llu", container_of(curr, struct task_struct, ce)->pid, curr->vruntime, mycfs_rq->min_vruntime);*/
 	curr->exec_start = now;
 }
 
 
-
+/* returns the left-most entity from the rbtree */
 struct sched_mycfs_entity *__pick_first_mycfs_entity(struct mycfs_rq *mycfs_rq)
 {
 	struct rb_node *left = mycfs_rq->rb_leftmost;
+	struct sched_mycfs_entity* ce = rb_entry(left, struct sched_mycfs_entity, run_node);
+	struct task_struct* p = container_of(ce, struct task_struct, ce);
+
 	if (!left)
 		return NULL;
+
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	left-most", task_cpu(p), p->pid, ce, ce->vruntime);
 
 	return rb_entry(left, struct sched_mycfs_entity, run_node);
 }
 
 void init_mycfs_rq(struct mycfs_rq *mycfs_rq)
 {
-	printk(KERN_DEBUG "MYCFS: initializing rq=%p", mycfs_rq);
+	printk(KERN_DEBUG "MYCFS: initializing mycfs_rq=%p", mycfs_rq);
 	mycfs_rq->tasks_timeline = RB_ROOT;
-	mycfs_rq->min_vruntime = (u64)(-(1LL << 20));
+	mycfs_rq->min_vruntime = 10000000;
+	printk(KERN_DEBUG "MYCFS: minvruntime =%llu", mycfs_rq->min_vruntime);
 }
 
 static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *ce)
@@ -91,7 +96,7 @@ static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entit
 	struct sched_mycfs_entity *entry;
 	int leftmost = 1;
 
-	/* printk(KERN_DEBUG "MYCFS: enqueue entity (mycfs_rq=%p, tt=%p, link = %p)", mycfs_rq, &mycfs_rq->tasks_timeline, link); */
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	enqueuing", task_cpu(container_of(ce, struct task_struct, ce)), container_of(ce, struct task_struct, ce)->pid, ce, ce->vruntime);
 	while (*link) {
 		parent = *link;
 		entry = rb_entry(parent, struct sched_mycfs_entity, run_node);
@@ -106,7 +111,7 @@ static void __enqueue_entity(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entit
 
 	if (leftmost)
 		mycfs_rq->rb_leftmost = &ce->run_node;
-	
+
 	rb_link_node(&ce->run_node, parent, link);
 	rb_insert_color(&ce->run_node, &mycfs_rq->tasks_timeline);
 }
@@ -123,7 +128,7 @@ static void enqueue_task_mycfs(struct rq *rq, struct task_struct *p, int flags)
 	mycfs_rq->rq = rq;
 	ce->mycfs_rq = mycfs_rq;
 
-	ce->vruntime += mycfs_rq->min_vruntime;
+	//ce->vruntime += mycfs_rq->min_vruntime;
 	update_curr(mycfs_rq);
 
 	__enqueue_entity(mycfs_rq, ce);
@@ -177,6 +182,9 @@ yield_to_task_mycfs(struct rq *rq, struct task_struct *p, bool preempt)
 		return true;
 
 	update_curr(&rq->mycfs);
+
+	printk(KERN_DEBUG "MYCFS: yield_to_task");
+
 	return true;
 }
 
@@ -190,7 +198,7 @@ check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 	if (unlikely(ce == pce))
 		return;
 
-	printk(KERN_DEBUG "MYCFS: preempt");
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	preempt", task_cpu(p), p->pid, &p->ce, p->ce.vruntime);
 	/*__enqueue_entity(mycfs_rq, ce); */
 	resched_task(curr);
 	/* set_next_entity(mycfs_rq, &p->ce); */
@@ -202,7 +210,7 @@ check_preempt_tick(struct mycfs_rq *mycfs_rq, struct sched_mycfs_entity *curr)
 	struct sched_mycfs_entity *ce;
 	s64 delta;
 
-	printk(KERN_DEBUG "MYCFS: fo %d %d", curr->limit, curr->run_ticks);
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	limit=%d run_ticks=%d", task_cpu(container_of(curr, struct task_struct, ce)), (container_of(curr, struct task_struct, ce))->pid, curr->limit, curr->run_ticks);
 	/* reschedule if portion of 100 ms slice exceeded */
 	if (curr->limit && curr->run_ticks >= curr->limit) {
 		printk(KERN_DEBUG "MYCFS: tick exceeded %d", curr->run_ticks);
@@ -232,22 +240,22 @@ static struct task_struct *pick_next_task_mycfs(struct rq *rq)
 	struct sched_mycfs_entity *ce;
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct rb_node *node;
-	int i = 0;
 
 	if (!mycfs_rq->nr_running)
 		return NULL;
 
+
+	printk(KERN_DEBUG "MYCFS: ***	CHOOSING A TASK TO RUN NEXT	***");
 	for (node = rb_first(&mycfs_rq->tasks_timeline); node; node = rb_next(node)) {
 		ce = rb_entry(node, struct sched_mycfs_entity, run_node);
 		p = container_of(ce, struct task_struct, ce);
-		printk(KERN_DEBUG "MYCFS: rbtree(%d): pid=%d vr=%llu", i, p->pid, p->ce.vruntime);
-		i++;
+		printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu", task_cpu(p), p->pid, &p->ce, p->ce.vruntime);
 	}
 
-	ce = __pick_first_mycfs_entity(mycfs_rq);
+	ce = __pick_first_mycfs_entity(mycfs_rq);	/* choose the left-most entity */
 	set_next_entity(mycfs_rq, ce);
 	p = container_of(ce, struct task_struct, ce);
-	printk(KERN_DEBUG "MYCFS: picking task %d (vr=%llu)", p->pid, p->ce.vruntime);
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	chosen", task_cpu(p), p->pid, ce, ce->vruntime);
 	return p;
 }
 
@@ -255,8 +263,11 @@ static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 {
 	/*struct sched_mycfs_entity *ce = &prev->ce; */
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	re-inserting",task_cpu(prev), prev->pid, &prev->ce);
+
 	if (prev->on_rq) {
 		update_curr(mycfs_rq);
+		printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	previously ran", task_cpu(prev), prev->pid, &prev->ce);
 		/*__enqueue_entity(mycfs_rq, ce);*/
 	}
 	mycfs_rq->curr = NULL;
@@ -265,7 +276,7 @@ static void put_prev_task_mycfs(struct rq *rq, struct task_struct *prev)
 static int
 select_task_rq_mycfs(struct task_struct *p, int sd_flag, int wake_flags)
 {
-	return smp_processor_id(); /* never change the processor of a process */
+	return task_cpu(p); /* never change the processor of a process */
 }
 
 static void rq_online_mycfs(struct rq *rq)
@@ -305,12 +316,12 @@ static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 {
 	struct mycfs_rq *mycfs_rq = &rq->mycfs;
 	struct sched_mycfs_entity *ce = &curr->ce;
-	u64 now = rq->clock_task;
-	return;
-
+	//u64 now = rq->clock_task;
+	//return;
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	task tick", task_cpu(curr), curr->pid, &curr->ce, curr->ce.vruntime);
 	ce->run_ticks++;
 	if (ce->run_ticks == 10) { /* edge of 100 ms period */
-		printk(KERN_DEBUG "MYCFS: new period for %d =  %llu", curr->pid, now);
+		//printk(KERN_DEBUG "MYCFS: new period for %d =  %llu", curr->pid, now);
 		ce->run_ticks += 10;
 	}
 
@@ -321,17 +332,18 @@ static void task_tick_mycfs(struct rq *rq, struct task_struct *curr, int queued)
 	/* struct sched_mycfs_entity *ce = &curr->ce;*/
 }
 
-static void task_fork_mycfs(struct task_struct *p)
+static void task_fork_mycfs(struct task_struct *p)	/* p is the new process, just forked */
 {
-	struct mycfs_rq *mycfs_rq = p->ce.mycfs_rq;
-	struct sched_mycfs_entity *ce = &p->ce, *curr;
-	curr = mycfs_rq->curr;
-	update_curr(mycfs_rq);
+	struct mycfs_rq *mycfs_rq = p->ce.mycfs_rq;	/* get the run queue from the process's schedule entity */
+	struct sched_mycfs_entity *ce = &p->ce, *curr;	/* get the schedule entity of the process */
+	curr = mycfs_rq->curr;				/* get the current running entity on the runqueue */
+	update_curr(mycfs_rq);				/* update the minimum virtual runtime of the run queue -- this may be done too many times*/
 
 	if (curr)
 		ce->vruntime = curr->vruntime;
 	resched_task(mycfs_rq->rq->curr);
 	ce->vruntime -= mycfs_rq->min_vruntime;
+	printk(KERN_DEBUG "MYCFS: pid: %d is new, with vr= %llu ", p->pid, ce->vruntime);
 }
 
 static void
@@ -348,13 +360,25 @@ static void switched_to_mycfs(struct rq *rq, struct task_struct *p)
 {
 	if(!p->ce.on_rq)
 		return;
+	printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	switched_to",task_cpu(p), p->pid, &p->ce, p->ce.vruntime);
 
-	resched_task(rq->curr);
+	if (rq->curr == p)
+	{
+		resched_task(rq->curr);
+		printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	rescheduled", task_cpu(p), p->pid, &p->ce, p->ce.vruntime);
+	}
+	else
+	{
+		printk(KERN_DEBUG "MYCFS: cpu%d	pid=%d	se=%p	vr=%llu	preempt", task_cpu(p), p->pid, &p->ce, p->ce.vruntime);
+		check_preempt_wakeup(rq, p, 0);
+	}
 }
 
 static unsigned int get_rr_interval_mycfs(struct rq *rq, struct task_struct *task)
 {
-	return 0; /* This should be fine */
+	unsigned long latency = 100000000;
+	printk(KERN_DEBUG "MYCFS: pid=%d	se=%p	rrint=%lu", task->pid, &task->ce, latency/(rq->nr_running));
+	return latency/(rq->nr_running);
 }
 
 const struct sched_class mycfs_sched_class = {
