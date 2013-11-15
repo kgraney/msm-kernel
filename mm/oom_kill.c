@@ -448,6 +448,7 @@ static void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 	unsigned int victim_points = 0;
 	static DEFINE_RATELIMIT_STATE(oom_rs, DEFAULT_RATELIMIT_INTERVAL,
 					      DEFAULT_RATELIMIT_BURST);
+	printk(KERN_DEBUG "OOM: KILLING (%d, %s)", p->pid, p->comm);
 
 	/*
 	 * If the task is already exiting, don't alarm the sysadmin or kill
@@ -561,6 +562,7 @@ void mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 	unsigned int points = 0;
 	struct task_struct *p;
 
+	printk(KERN_DEBUG "OOM: out_of_memory(%d, %s)", p->pid, p->comm);
 	/*
 	 * If current has a pending SIGKILL, then automatically select it.  The
 	 * goal is to allow it to allocate so that it may quickly exit and free
@@ -779,4 +781,14 @@ void pagefault_out_of_memory(void)
 	}
 	if (!test_thread_flag(TIF_MEMDIE))
 		schedule_timeout_uninterruptible(1);
+}
+
+void kill_process(struct task_struct *p, gfp_t gfp_mask, unsigned int order,
+		struct zonelist *zonelist, nodemask_t *nodemask)
+{
+	enum oom_constraint constraint = CONSTRAINT_NONE;
+	unsigned long totalpages;
+
+	constraint = constrained_alloc(zonelist, gfp_mask, nodemask, &totalpages);
+	oom_kill_process(p, gfp_mask, order, 1000, totalpages, NULL, nodemask, "Out of memory");
 }
