@@ -765,6 +765,196 @@ out:
 		schedule_timeout_uninterruptible(1);
 }
 
+unsigned int oom_user_badness(struct task_struct *p, struct mem_cgroup *memcg,
+		      const nodemask_t *nodemask, unsigned long totalpages, struct user_struct *user)
+{
+	long points = 0;
+	struct user_struct *curr_user;
+	curr_user = get_current_user();  // get user of current task
+
+	if (oom_unkillable_task(p, memcg, nodemask))
+		return 0;
+
+	p = find_lock_task_mm(p);
+	if (!p)
+		return 0;
+
+	if (p->signal->oom_score_adj == OOM_SCORE_ADJ_MIN) {
+		task_unlock(p);
+		return 0;
+	}
+
+	/*
+	 * The memory controller may have a limit of 0 bytes, so avoid a divide
+	 * by zero, if necessary.
+	 */
+	if (!totalpages)
+		totalpages = 1;
+
+	/*
+	 * The baseline for the badness score is the task's rss.
+	 */
+
+	if(curr_user == user)
+		points = get_mm_rss(p->mm);
+
+	points *= 1000;
+	points /= totalpages;
+	task_unlock(p);
+
+	/*
+	 * /proc/pid/oom_score_adj ranges from -1000 to +1000 such that it may
+	 * either completely disable oom killing or always prefer a certain
+	 * task.
+	 */
+	points += p->signal->oom_score_adj;
+
+	/*
+	 * Never return 0 for an eligible task that may be killed.
+	 */
+	if (points <= 0)
+		return 1;
+	return (points < 1000) ? points : 1000;
+}
+
+static struct task_struct *select_bad_user_process(unsigned int *ppoints,
+		unsigned long totalpages, struct mem_cgroup *memcg,
+		const nodemask_t *nodemask, bool force_kill, struct user_struct *user)
+{
+	struct task_struct *g, *p;
+	struct task_struct *chosen = NULL;
+	*ppoints = 0;
+
+	do_each_thread(g, p) {
+		unsigned int points;
+
+		if (p->exit_state)
+			continue;
+		if (oom_unkillable_task(p, memcg, nodemask))
+			continue;
+
+		/*
+		 * This task already has access to memory reserves and is
+		 * being killed. Don't allow any other task access to the
+		 * memory reserve.
+		 *
+		 * Note: this may have a chance of deadlock if it gets
+		 * blocked waiting for another task which itself is waiting
+		 * for memory. Is there a better alternative?
+		 */
+		if (test_tsk_thread_flag(p, TIF_MEMDIE)) {
+			if (unlikely(frozen(p)))
+				__thaw_task(p);
+			if (!force_kill)
+				return ERR_PTR(-1UL);
+		}
+		if (!p->mm)
+			continue;
+
+		if (p->flags & PF_EXITING) {
+			/*
+			 * If p is the current task and is in the process of
+			 * releasing memory, we allow the "kill" to set
+			 * TIF_MEMDIE, which will allow it to gain access to
+			 * memory reserves.  Otherwise, it may stall forever.
+			 *
+			 * The loop isn't broken here, however, in case other
+			 * threads are found to have already been oom killed.
+			 */
+			if (p == current) {
+				chosen = p;
+				*ppoints = 1000;
+			} else if (!force_kill) {
+				/*
+				 * If this task is not being ptraced on exit,
+				 * then wait for it to finish before killing
+				 * some other task unnecessarily.
+				 */
+				if (!(p->group_leader->ptrace & PT_TRACE_EXIT))
+					return ERR_PTR(-1UL);
+			}
+		}
+
+		points = oom_user_badness(p, memcg, nodemask, totalpages, user);
+		if (points > *ppoints) {
+			chosen = p;
+			*ppoints = points;
+		}
+	} while_each_thread(g, p);
+
+	return chosen;
+}
+
+void out_of_user_memory(struct zonelist *zonelist, gfp_t gfp_mask,
+		int order, nodemask_t *nodemask, bool force_kill, struct user_struct *user)
+{
+	const nodemask_t *mpol_mask;
+	struct task_struct *p;
+	unsigned long totalpages;
+	unsigned long freed = 0;
+	unsigned int points;
+	enum oom_constraint constraint = CONSTRAINT_NONE;
+	int killed = 0;
+
+	blocking_notifier_call_chain(&oom_notify_list, 0, &freed);
+	if (freed > 0)
+		/* Got some memory back in the last second. */
+		return;
+
+	/*
+	 * If current has a pending SIGKILL, then automatically select it.  The
+	 * goal is to allow it to allocate so that it may quickly exit and free
+	 * its memory.
+	 */
+	if (fatal_signal_pending(current)) {
+		set_thread_flag(TIF_MEMDIE);
+		return;
+	}
+
+	/*
+	 * Check if there were limitations on the allocation (only relevant for
+	 * NUMA) that may require different handling.
+	 */
+	constraint = constrained_alloc(zonelist, gfp_mask, nodemask,
+						&totalpages);
+	mpol_mask = (constraint == CONSTRAINT_MEMORY_POLICY) ? nodemask : NULL;
+	check_panic_on_oom(constraint, gfp_mask, order, mpol_mask);
+
+	read_lock(&tasklist_lock);
+	if (sysctl_oom_kill_allocating_task &&
+	    !oom_unkillable_task(current, NULL, nodemask) &&
+	    current->mm) {
+		oom_kill_process(current, gfp_mask, order, 0, totalpages, NULL,
+				 nodemask,
+				 "Out of memory (oom_kill_allocating_task)");
+		goto out;
+	}
+
+	p = select_bad_user_process(&points, totalpages, NULL, mpol_mask,
+			       force_kill, user);
+	/* Found nothing?!?! Either we hang forever, or we panic. */
+	if (!p) {
+		dump_header(NULL, gfp_mask, order, NULL, mpol_mask);
+		read_unlock(&tasklist_lock);
+		panic("Out of memory and no killable processes...\n");
+	}
+	if (PTR_ERR(p) != -1UL) {
+		oom_kill_process(p, gfp_mask, order, points, totalpages, NULL,
+				 nodemask, "Out of memory");
+		killed = 1;
+	}
+out:
+	read_unlock(&tasklist_lock);
+
+	/*
+	 * Give "p" a good chance of killing itself before we
+	 * retry to allocate memory unless "p" is current
+	 */
+	if (killed && !test_thread_flag(TIF_MEMDIE))
+		schedule_timeout_uninterruptible(1);
+}
+
+
 /*
  * The pagefault handler calls here because it is out of memory, so kill a
  * memory-hogging task.  If a populated zone has ZONE_OOM_LOCKED set, a parallel

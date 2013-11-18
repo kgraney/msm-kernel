@@ -59,6 +59,8 @@
 #include <linux/prefetch.h>
 #include <linux/migrate.h>
 #include <linux/page-debug-flags.h>
+#include <linux/sched.h>
+#include <linux/syscalls.h>
 
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -2549,6 +2551,14 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	int migratetype = allocflags_to_migratetype(gfp_mask);
 	unsigned int cpuset_mems_cookie;
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
+	unsigned long user_total_rss = 0;
+	struct user_struct *curr_user;
+	struct user_struct *user;
+	struct task_struct *proc;
+
+	user = get_current_user();
+	if (!user)
+		return NULL;
 
 	gfp_mask &= gfp_allowed_mask;
 
@@ -2601,6 +2611,21 @@ out:
 	 */
 	if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 		goto retry_cpuset;
+
+	if (unlikely(page != NULL))
+	{
+		for_each_process(proc)
+		{
+			curr_user = get_current_user();
+			if (!curr_user)
+				return NULL;
+			if(curr_user == user)
+				user_total_rss += get_mm_rss(proc->mm);
+		}
+		if(user_total_rss > user->mem_max)
+			out_of_user_memory(zonelist, gfp_mask, order, nodemask,
+				false, user);
+	}
 
 	return page;
 }
@@ -6144,4 +6169,13 @@ void dump_page(struct page *page)
 		page->mapping, page->index);
 	dump_page_flags(page->flags);
 	mem_cgroup_print_bad_page(page);
+}
+
+SYSCALL_DEFINE2(set_mlimit, uid_t, uid, long, mem_max)
+{
+	struct user_struct *user = find_user(uid);
+	if (!user)
+		return -EINVAL;
+	user->mem_max = (unsigned long)mem_max;
+	return 0;
 }
