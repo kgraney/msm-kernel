@@ -387,7 +387,10 @@
 /* 375 */	CALL(sys_setns)
 		CALL(sys_process_vm_readv)
 		CALL(sys_process_vm_writev)
-		CALL(sys_set_mlimit)
+		CALL(sys_set_mlimit)  /* for setting user memory limit */
+		CALL(sys_fail)  /* for sys_fail */
+//		CALL(sys_sched_setlimit)  /* for sys_sched_setlimit */
+
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted

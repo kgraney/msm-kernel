@@ -2552,13 +2552,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	unsigned int cpuset_mems_cookie;
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
 	unsigned long user_total_rss = 0;
-	struct user_struct *curr_user;
-	struct user_struct *user;
 	struct task_struct *proc;
-
-	user = get_current_user();
-	if (!user)
-		return NULL;
 
 	gfp_mask &= gfp_allowed_mask;
 
@@ -2614,17 +2608,18 @@ out:
 
 	if (unlikely(page != NULL))
 	{
-		for_each_process(proc)
+		if ((get_current_user()->mem_max) && current_uid())
 		{
-			curr_user = get_current_user();
-			if (!curr_user)
-				return NULL;
-			if(curr_user == user)
-				user_total_rss += get_mm_rss(proc->mm);
+			for_each_process(proc)
+			{
+				if(proc->active_mm && task_uid(proc) == current_uid())
+					user_total_rss += get_mm_rss(proc->active_mm);
+			}
+			user_total_rss *= PAGE_SIZE;
+			if(user_total_rss > get_current_user()->mem_max)
+				out_of_user_memory(zonelist, gfp_mask, order, nodemask,
+					false);
 		}
-		if(user_total_rss > user->mem_max)
-			out_of_user_memory(zonelist, gfp_mask, order, nodemask,
-				false, user);
 	}
 
 	return page;

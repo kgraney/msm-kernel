@@ -160,6 +160,11 @@ static bool oom_unkillable_task(struct task_struct *p,
 	if (p->flags & PF_KTHREAD)
 		return true;
 
+        /* unless root, processes owned by other users are unkillable */
+        if (current_uid() != task_uid(p) &&
+                        !has_capability_noaudit(p, CAP_SYS_ADMIN))
+                return true;
+
 	/* When mem_cgroup_out_of_memory() and p is not member of the group */
 	if (memcg && !task_in_mem_cgroup(p, memcg))
 		return true;
@@ -766,11 +771,9 @@ out:
 }
 
 unsigned int oom_user_badness(struct task_struct *p, struct mem_cgroup *memcg,
-		      const nodemask_t *nodemask, unsigned long totalpages, struct user_struct *user)
+		      const nodemask_t *nodemask, unsigned long totalpages)
 {
 	long points = 0;
-	struct user_struct *curr_user;
-	curr_user = get_current_user();  // get user of current task
 
 	if (oom_unkillable_task(p, memcg, nodemask))
 		return 0;
@@ -795,7 +798,7 @@ unsigned int oom_user_badness(struct task_struct *p, struct mem_cgroup *memcg,
 	 * The baseline for the badness score is the task's rss.
 	 */
 
-	if(curr_user == user)
+	if(current_uid() == task_uid(p))
 		points = get_mm_rss(p->mm);
 
 	points *= 1000;
@@ -819,7 +822,7 @@ unsigned int oom_user_badness(struct task_struct *p, struct mem_cgroup *memcg,
 
 static struct task_struct *select_bad_user_process(unsigned int *ppoints,
 		unsigned long totalpages, struct mem_cgroup *memcg,
-		const nodemask_t *nodemask, bool force_kill, struct user_struct *user)
+		const nodemask_t *nodemask, bool force_kill)
 {
 	struct task_struct *g, *p;
 	struct task_struct *chosen = NULL;
@@ -875,7 +878,7 @@ static struct task_struct *select_bad_user_process(unsigned int *ppoints,
 			}
 		}
 
-		points = oom_user_badness(p, memcg, nodemask, totalpages, user);
+		points = oom_user_badness(p, memcg, nodemask, totalpages);
 		if (points > *ppoints) {
 			chosen = p;
 			*ppoints = points;
@@ -886,7 +889,7 @@ static struct task_struct *select_bad_user_process(unsigned int *ppoints,
 }
 
 void out_of_user_memory(struct zonelist *zonelist, gfp_t gfp_mask,
-		int order, nodemask_t *nodemask, bool force_kill, struct user_struct *user)
+		int order, nodemask_t *nodemask, bool force_kill)
 {
 	const nodemask_t *mpol_mask;
 	struct task_struct *p;
@@ -931,7 +934,7 @@ void out_of_user_memory(struct zonelist *zonelist, gfp_t gfp_mask,
 	}
 
 	p = select_bad_user_process(&points, totalpages, NULL, mpol_mask,
-			       force_kill, user);
+			       force_kill);
 	/* Found nothing?!?! Either we hang forever, or we panic. */
 	if (!p) {
 		dump_header(NULL, gfp_mask, order, NULL, mpol_mask);
@@ -953,7 +956,6 @@ out:
 	if (killed && !test_thread_flag(TIF_MEMDIE))
 		schedule_timeout_uninterruptible(1);
 }
-
 
 /*
  * The pagefault handler calls here because it is out of memory, so kill a
