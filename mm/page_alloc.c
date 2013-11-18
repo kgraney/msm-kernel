@@ -155,9 +155,6 @@ int pageblock_order __read_mostly;
 
 static void __free_pages_ok(struct page *page, unsigned int order);
 
-void kill_process(struct task_struct *p, gfp_t gfp_mask, unsigned int order,
-		struct zonelist *zonelist, nodemask_t *nodemask);
-
 /*
  * results with 256, 32 in the lowmem_reserve sysctl:
  *	1G machine -> (16M dma, 800M-16M normal, 1G-800M high)
@@ -2554,25 +2551,29 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
 
 	/* the memory limit for the current user */
-	unsigned long mm_limit = current->cred->user->mm_limit;
-	struct task_struct *p, *to_kill = NULL;
-	unsigned long rss, max_rss = 0, total_rss = 0;
+	unsigned long mm_limit = get_current_user()->mm_limit;
+	struct task_struct *p;
+	unsigned long total_rss = 0;
 
-	/*printk(KERN_DEBUG "OOM: alloc pages (%d, %s) (%d, %lu)\n", current->pid, current->comm, current->cred->uid, mm_limit); */
-	for_each_process(p) {
-		if (p->active_mm && p->cred->uid == current->cred->uid) {
-			rss = get_mm_rss(p->active_mm) * PAGE_SIZE;
-			if (rss > max_rss) {
-				to_kill = p;
-				max_rss = rss;
+	if (mm_limit && current_uid()) {
+		//read_lock(&tasklist_lock);
+		for_each_process(p)
+			if (p->active_mm && task_uid(p) == current_uid())
+				total_rss += get_mm_rss(p->active_mm);
+		//read_unlock(&tasklist_lock);
+		total_rss *= PAGE_SIZE;
+
+		if (mm_limit && total_rss + PAGE_SIZE > mm_limit) {
+			printk(KERN_WARNING "OOM: ---- begin killing because of excessive user usage ----");
+			printk(KERN_WARNING "OOM: exceeds limit (%lu < %lu)", mm_limit, total_rss);
+			for_each_process(p) {
+				if (p->active_mm && task_uid(p) == current_uid()) {
+					printk(KERN_WARNING "OOM: %d owns %d (%s) of size %lu", task_uid(p), p->pid, p->comm, get_mm_rss(p->active_mm) * PAGE_SIZE);
+				}
 			}
-			total_rss += rss;
+			out_of_memory(zonelist, gfp_mask, order, nodemask, false);
+			printk(KERN_WARNING "OOM: ---- end killing because of excessive user usage ----");
 		}
-	}
-	if (mm_limit && total_rss + PAGE_SIZE > mm_limit && to_kill) {
-		printk(KERN_DEBUG "OOM: exceeds limit (%lu < %lu) will kill (%d, %s, %lu)", mm_limit, total_rss, to_kill->pid, to_kill->comm, get_mm_rss(to_kill->active_mm));
-		kill_process(to_kill, gfp_mask, order, zonelist, nodemask);
-		return NULL;
 	}
 
 	gfp_mask &= gfp_allowed_mask;

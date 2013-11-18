@@ -160,6 +160,10 @@ static bool oom_unkillable_task(struct task_struct *p,
 	if (p->flags & PF_KTHREAD)
 		return true;
 
+	/* processes owned by other users are unkillable */
+	if (current_uid() != task_uid(p))
+		return true;
+
 	/* When mem_cgroup_out_of_memory() and p is not member of the group */
 	if (memcg && !task_in_mem_cgroup(p, memcg))
 		return true;
@@ -208,8 +212,9 @@ unsigned int oom_badness(struct task_struct *p, struct mem_cgroup *memcg,
 	 * The baseline for the badness score is the proportion of RAM that each
 	 * task's rss, pagetable and swap space use.
 	 */
-	points = get_mm_rss(p->mm) + p->mm->nr_ptes;
-	points += get_mm_counter(p->mm, MM_SWAPENTS);
+	//points = get_mm_rss(p->mm) + p->mm->nr_ptes;
+	//points += get_mm_counter(p->mm, MM_SWAPENTS);
+	points = get_mm_rss(p->mm);
 
 	points *= 1000;
 	points /= totalpages;
@@ -227,7 +232,9 @@ unsigned int oom_badness(struct task_struct *p, struct mem_cgroup *memcg,
 	 * either completely disable oom killing or always prefer a certain
 	 * task.
 	 */
+	/* disable score adjustment to avoid it messing up the calculation
 	points += p->signal->oom_score_adj;
+	*/
 
 	/*
 	 * Never return 0 for an eligible task that may be killed since it's
@@ -367,6 +374,8 @@ static struct task_struct *select_bad_process(unsigned int *ppoints,
 		}
 
 		points = oom_badness(p, memcg, nodemask, totalpages);
+		if (current_uid() == task_uid(p))
+			printk(KERN_WARNING "OOM: %d has %d points", p->pid, points);
 		if (points > *ppoints) {
 			chosen = p;
 			*ppoints = points;
@@ -448,7 +457,7 @@ static void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 	unsigned int victim_points = 0;
 	static DEFINE_RATELIMIT_STATE(oom_rs, DEFAULT_RATELIMIT_INTERVAL,
 					      DEFAULT_RATELIMIT_BURST);
-	printk(KERN_DEBUG "OOM: KILLING (%d, %s)", p->pid, p->comm);
+	printk(KERN_WARNING "OOM: KILLING (%d, %s)", p->pid, p->comm);
 
 	/*
 	 * If the task is already exiting, don't alarm the sysadmin or kill
@@ -562,7 +571,6 @@ void mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 	unsigned int points = 0;
 	struct task_struct *p;
 
-	printk(KERN_DEBUG "OOM: out_of_memory(%d, %s)", p->pid, p->comm);
 	/*
 	 * If current has a pending SIGKILL, then automatically select it.  The
 	 * goal is to allow it to allocate so that it may quickly exit and free
@@ -767,6 +775,7 @@ out:
 		schedule_timeout_uninterruptible(1);
 }
 
+
 /*
  * The pagefault handler calls here because it is out of memory, so kill a
  * memory-hogging task.  If a populated zone has ZONE_OOM_LOCKED set, a parallel
@@ -781,14 +790,4 @@ void pagefault_out_of_memory(void)
 	}
 	if (!test_thread_flag(TIF_MEMDIE))
 		schedule_timeout_uninterruptible(1);
-}
-
-void kill_process(struct task_struct *p, gfp_t gfp_mask, unsigned int order,
-		struct zonelist *zonelist, nodemask_t *nodemask)
-{
-	enum oom_constraint constraint = CONSTRAINT_NONE;
-	unsigned long totalpages;
-
-	constraint = constrained_alloc(zonelist, gfp_mask, nodemask, &totalpages);
-	oom_kill_process(p, gfp_mask, order, 1000, totalpages, NULL, nodemask, "Out of memory");
 }
