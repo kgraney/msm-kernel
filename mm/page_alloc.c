@@ -2563,7 +2563,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 		//read_unlock(&tasklist_lock);
 		total_rss *= PAGE_SIZE;
 
-		if (mm_limit && total_rss + PAGE_SIZE > mm_limit) {
+		if (mm_limit && total_rss + PAGE_SIZE >= mm_limit) {
 			printk(KERN_WARNING "OOM: ---- begin killing because of excessive user usage ----");
 			printk(KERN_WARNING "OOM: exceeds limit (%lu < %lu)", mm_limit, total_rss);
 			for_each_process(p) {

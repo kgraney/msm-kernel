@@ -160,8 +160,9 @@ static bool oom_unkillable_task(struct task_struct *p,
 	if (p->flags & PF_KTHREAD)
 		return true;
 
-	/* processes owned by other users are unkillable */
-	if (current_uid() != task_uid(p))
+	/* unless root, processes owned by other users are unkillable */
+	if (current_uid() != task_uid(p) &&
+			!has_capability_noaudit(p, CAP_SYS_ADMIN))
 		return true;
 
 	/* When mem_cgroup_out_of_memory() and p is not member of the group */
