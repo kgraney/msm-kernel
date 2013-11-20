@@ -2536,6 +2536,22 @@ got_pg:
 
 }
 
+long get_user_mem_use(struct task_struct* p, uid_t uid)
+{
+	long points = 0;
+	for(p = &init_task ; (p = next_task(p)) != &init_task ; )
+	{
+		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	loop\n", uid, p->pid);
+		if (p->active_mm && p->cred->user->uid == uid)
+		{
+			printk(KERN_DEBUG "OOUM: uid:%d	p->cred->user->uid=%d	uid match", uid, p->cred->user->uid);
+			points += get_mm_rss(p->active_mm);
+		}
+	 
+	}
+	return points*1000;
+}
+
 /*
  * This is the 'heart' of the zoned buddy allocator.
  */
@@ -2549,6 +2565,8 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	int migratetype = allocflags_to_migratetype(gfp_mask);
 	unsigned int cpuset_mems_cookie;
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
+	struct user_struct* user = get_current_user();
+	struct task_struct* p = current;
 
 	gfp_mask &= gfp_allowed_mask;
 
@@ -2567,6 +2585,21 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	if (unlikely(!zonelist->_zonerefs->zone))
 		return NULL;
 
+	/*
+	 * check that the user is not exceeding their memory quota
+	 */
+	if (user->mem_max)
+	{
+		long mem_use = get_user_mem_use(p, user->uid);// mem_use is initialized to zero
+		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	mem_use=%ld	mem_max=%ld", user->uid, p->pid, mem_use, user->mem_max);
+
+		if (user-> mem_max < mem_use)
+		{
+			printk(KERN_DEBUG "OOUM: uid:%d pid=%d exceeded quota", user->uid, p->pid);
+			//return NULL;//invoke oom killer for the user's most demanding process
+		}
+	}
+	
 retry_cpuset:
 	cpuset_mems_cookie = get_mems_allowed();
 
