@@ -2548,13 +2548,12 @@ long get_user_mem_use(struct task_struct* p, uid_t uid)
 		{
 			printk(KERN_DEBUG "OOUM: uid:%d	p->cred->user->uid=%d	uid match", uid, p->cred->user->uid);
 			points += get_mm_rss(p->active_mm);
-		}
-	 
+		}	 
 	}
 	return points*1000;
 }
 
-static struct task_struct* get_heavy_tsk(struct task_struct* p, uid_t uid)
+struct task_struct* get_heavy_tsk(struct task_struct* p, uid_t uid)
 {
 	struct task_struct* heavy_tsk = current;
 	long points = 0, ppoints = 0;
@@ -2562,17 +2561,17 @@ static struct task_struct* get_heavy_tsk(struct task_struct* p, uid_t uid)
 	for (p = &init_task ; (p = next_task(p)) != &init_task ; )
 	{
 		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	points=%ld	ppoints=%ld", uid, p->pid, points, ppoints);
-	/*
 		points = get_mm_rss(p->active_mm);
 		if (ppoints < points)
 		{
 			ppoints = points;
 			heavy_tsk = p; 
 		}
-	*/
 	}
 	return heavy_tsk;
 }
+
+
 
 /*
  * This is the 'heart' of the zoned buddy allocator.
@@ -2627,7 +2626,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 			printk(KERN_DEBUG "OOUM: uid:%d pid=%d exceeded quota", user->uid, heavy_tsk->pid);
 			mutex_unlock(&user_mem_mutex);
 			//oom_kill_process(heavy_tsk, gfp_mask, order, mem_use, user->mem_max, NULL, nodemask, "User exceeded memory quota");
-			//return NULL;//invoke oom killer for the user's most demanding process
+			out_of_memory(zonelist, gfp_mask, order, nodemask, false);
 		}
 	}
 	
