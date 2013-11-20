@@ -64,6 +64,8 @@
 #include <asm/div64.h>
 #include "internal.h"
 
+DEFINE_MUTEX(user_mem_mutex);
+
 #ifdef CONFIG_USE_PERCPU_NUMA_NODE_ID
 DEFINE_PER_CPU(int, numa_node);
 EXPORT_PER_CPU_SYMBOL(numa_node);
@@ -2541,7 +2543,7 @@ long get_user_mem_use(struct task_struct* p, uid_t uid)
 	long points = 0;
 	for(p = &init_task ; (p = next_task(p)) != &init_task ; )
 	{
-		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	loop\n", uid, p->pid);
+		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	loop", uid, p->pid);
 		if (p->active_mm && p->cred->user->uid == uid)
 		{
 			printk(KERN_DEBUG "OOUM: uid:%d	p->cred->user->uid=%d	uid match", uid, p->cred->user->uid);
@@ -2550,6 +2552,26 @@ long get_user_mem_use(struct task_struct* p, uid_t uid)
 	 
 	}
 	return points*1000;
+}
+
+static struct task_struct* get_heavy_tsk(struct task_struct* p, uid_t uid)
+{
+	struct task_struct* heavy_tsk = current;
+	long points = 0, ppoints = 0;
+	printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	heavy task", uid, p->pid);
+	for (p = &init_task ; (p = next_task(p)) != &init_task ; )
+	{
+		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	points=%ld	ppoints=%ld", uid, p->pid, points, ppoints);
+	/*
+		points = get_mm_rss(p->active_mm);
+		if (ppoints < points)
+		{
+			ppoints = points;
+			heavy_tsk = p; 
+		}
+	*/
+	}
+	return heavy_tsk;
 }
 
 /*
@@ -2590,12 +2612,21 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	 */
 	if (user->mem_max)
 	{
-		long mem_use = get_user_mem_use(p, user->uid);// mem_use is initialized to zero
+		long mem_use;
+		struct task_struct* heavy_tsk;
+
+		mutex_lock(&user_mem_mutex);
+		mem_use = get_user_mem_use(p, user->uid);
 		printk(KERN_DEBUG "OOUM: uid:%d	pid=%d	mem_use=%ld	mem_max=%ld", user->uid, p->pid, mem_use, user->mem_max);
+		mutex_unlock(&user_mem_mutex);
 
 		if (user-> mem_max < mem_use)
 		{
-			printk(KERN_DEBUG "OOUM: uid:%d pid=%d exceeded quota", user->uid, p->pid);
+			mutex_lock(&user_mem_mutex);
+			heavy_tsk = get_heavy_tsk(p, user->uid);
+			printk(KERN_DEBUG "OOUM: uid:%d pid=%d exceeded quota", user->uid, heavy_tsk->pid);
+			mutex_unlock(&user_mem_mutex);
+			//oom_kill_process(heavy_tsk, gfp_mask, order, mem_use, user->mem_max, NULL, nodemask, "User exceeded memory quota");
 			//return NULL;//invoke oom killer for the user's most demanding process
 		}
 	}
