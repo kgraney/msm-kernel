@@ -2564,6 +2564,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 		total_rss *= PAGE_SIZE;
 
 		if (mm_limit && total_rss + PAGE_SIZE >= mm_limit) {
+			/*
 			printk(KERN_WARNING "OOM: ---- begin killing because of excessive user usage ----");
 			printk(KERN_WARNING "OOM: exceeds limit (%lu < %lu)", mm_limit, total_rss);
 			for_each_process(p) {
@@ -2571,8 +2572,11 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 					printk(KERN_WARNING "OOM: %d owns %d (%s) of size %lu", task_uid(p), p->pid, p->comm, get_mm_rss(p->active_mm) * PAGE_SIZE);
 				}
 			}
+			*/
 			out_of_memory(zonelist, gfp_mask, order, nodemask, false);
+			/*
 			printk(KERN_WARNING "OOM: ---- end killing because of excessive user usage ----");
+			*/
 		}
 	}
 
