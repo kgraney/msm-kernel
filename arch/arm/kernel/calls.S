@@ -387,8 +387,9 @@
 /* 375 */	CALL(sys_setns)
 		CALL(sys_process_vm_readv)
 		CALL(sys_process_vm_writev)
-		CALL(sys_set_mlimit)  /* for setting user memory limit */
+		CALL(sys_ext4_cowcopy)  /* for copy on write */
 		CALL(sys_fail)  /* for sys_fail */
+		CALL(sys_set_mlimit)  /* for setting user memory limit */
 //		CALL(sys_sched_setlimit)  /* for sys_sched_setlimit */
 
 #ifndef syscalls_counted
