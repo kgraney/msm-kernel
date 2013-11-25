@@ -4,7 +4,7 @@
 #include <linux/sched.h>
 #include <linux/fs_struct.h>
 #include <linux/path.h>
-#include <linux/fsnotify.h>
+#include <linux/xattr.h>
 
 static struct dentry* __get_dentry(const char *path_str, int flags, int *err)
 {
@@ -23,6 +23,7 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 {
 	struct dentry *src_dent;
 	struct inode *src_inode;
+	char xattr_val;
 	int err;
 
 	if (!access_ok(VERIFY_READ, src, 1) || !access_ok(VERIFY_READ, dest, 1))
@@ -43,8 +44,22 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 	err = sys_linkat(AT_FDCWD, src, AT_FDCWD, dest, 0);
 	if (err) goto err;
 
-	err = 1;
-	src_inode->i_op->setxattr(src_dent, "system.ext4_cow", &err, 1, 0);
+	xattr_val = 1;
+	err = vfs_setxattr(src_dent, "user.ext4_cow", &xattr_val, sizeof(char), 0);
+	if (err) {
+		printk(KERN_WARNING "COW: setxattr error");
+		goto err;
+	}
+
+	/*
+	xattr_val = 100;
+	err = vfs_getxattr(src_dent, "user.ext4_cow", &xattr_val, sizeof(char));
+	if (err != sizeof(char)) {
+		printk(KERN_WARNING "COW: getxattr error");
+		goto err;
+	}
+	printk(KERN_WARNING "COW: xattr = %d", xattr_val);
+	*/
 
 	return 0;
 
