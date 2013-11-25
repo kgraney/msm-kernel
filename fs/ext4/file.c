@@ -164,8 +164,22 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	struct vfsmount *mnt = filp->f_path.mnt;
+	struct dentry *dentry = filp->f_path.dentry;
+	mode_t mode = filp->f_mode;
 	struct path path;
 	char buf[64], *cp;
+	int size;
+
+	size = vfs_getxattr(dentry, "user.ext4_cow", &buf, sizeof(char));
+	if (unlikely(sizeof(char) == size) && (*buf == 1) && (mode & FMODE_WRITE)) {
+		printk(KERN_WARNING "COW: opening inode %p with ext4_cow set, copying file", inode);
+		/* TODO:
+			copy the file
+			clear ext4_cow flag in the new inode
+			decrement i_nlink in the other inode
+			clear ext4_cow flag in the other inode if i_nlink goes to zero
+		*/
+	}
 
 	if (unlikely(!(sbi->s_mount_flags & EXT4_MF_MNTDIR_SAMPLED) &&
 		     !(sb->s_flags & MS_RDONLY))) {
