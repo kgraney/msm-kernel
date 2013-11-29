@@ -20,6 +20,7 @@
 
 #include <linux/time.h>
 #include <linux/fs.h>
+#include <linux/fsnotify.h>
 #include <linux/jbd2.h>
 #include <linux/mount.h>
 #include <linux/path.h>
@@ -169,10 +170,24 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 	struct path path;
 	char buf[64], *cp;
 	int size;
+	struct dentry *p_dent;
+	int err = 0;
 
 	size = vfs_getxattr(dentry, "user.ext4_cow", &buf, sizeof(char));
 	if (unlikely(sizeof(char) == size) && (*buf == 1) && (mode & FMODE_WRITE)) {
 		printk(KERN_WARNING "COW: opening inode %p with ext4_cow set, copying file", inode);
+		list_for_each_entry(p_dent, &inode->i_dentry, d_alias) {
+			printk(KERN_WARNING "COW: dentry = %p->%p", p_dent, inode);
+		}
+
+		mutex_lock_nested(&dentry->d_parent->d_inode->i_mutex, I_MUTEX_PARENT);
+		err = vfs_unlink(dentry->d_parent->d_inode, dentry);
+		if (err) printk("COW: error unlinking (%d)", err);
+
+		fsnotify_nameremove(dentry, false);
+		err = vfs_create(dentry->d_parent->d_inode, dentry, inode->i_mode, NULL);
+		if (err) printk("COW: error creating (%d)", err);
+		mutex_unlock(&dentry->d_parent->d_inode->i_mutex);
 		/* TODO:
 			copy the file
 			clear ext4_cow flag in the new inode
