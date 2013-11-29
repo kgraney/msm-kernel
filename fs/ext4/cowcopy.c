@@ -40,6 +40,8 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 		return -EPERM;
 
 	/* TODO: check fs type of src_inode is ext4 */
+	if (strcmp(src_inode->i_sb->s_type->name, "ext4"))
+		return -EOPNOTSUPP;
 
 	err = sys_linkat(AT_FDCWD, src, AT_FDCWD, dest, 0);
 	if (err) goto err;
