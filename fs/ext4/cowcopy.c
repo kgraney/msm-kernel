@@ -5,6 +5,7 @@
 #include <linux/fs_struct.h>
 #include <linux/path.h>
 #include <linux/xattr.h>
+#include <linux/slab.h>
 
 static struct dentry* __get_dentry(const char *path_str, int flags, int *err)
 {
@@ -25,13 +26,25 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 	struct inode *src_inode;
 	char xattr_val;
 	int err;
+	char *ksrc, *kdest;
 
-	if (!access_ok(VERIFY_READ, src, 1) || !access_ok(VERIFY_READ, dest, 1))
+	//if (!access_ok(VERIFY_READ, src, 1) || !access_ok(VERIFY_READ, dest, 1))
+	//	return -EINVAL;
+	err = strlen_user(src);
+	if (err <= 0)
 		return -EINVAL;
+	ksrc = kmalloc(err, GFP_USER);
+	err = strncpy_from_user(ksrc, src, err);
 
-	printk(KERN_WARNING "COW: copying %s to %s", src, dest);
+	err = strlen_user(dest);
+	if (err <= 0)
+		return -EINVAL;
+	kdest = kmalloc(err, GFP_USER);
+	err = strncpy_from_user(kdest, dest, err);
 
-	src_dent = __get_dentry(src, 0, &err);
+	printk(KERN_WARNING "COW: copying %s to %s", ksrc, kdest);
+
+	src_dent = __get_dentry(ksrc, 0, &err);
 	if (!src_dent) goto err;
 	src_inode = src_dent->d_inode;
 	if (!src_inode) goto err;
@@ -45,6 +58,8 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 
 	err = sys_linkat(AT_FDCWD, src, AT_FDCWD, dest, 0);
 	if (err) goto err;
+
+	printk(KERN_WARNING "COW: foo");
 
 	xattr_val = 1;
 	err = vfs_setxattr(src_dent, "user.ext4_cow", &xattr_val, sizeof(char), 0);
