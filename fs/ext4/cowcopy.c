@@ -5,7 +5,6 @@
 #include <linux/fs_struct.h>
 #include <linux/path.h>
 #include <linux/xattr.h>
-#include <linux/slab.h>
 
 static struct dentry* __get_dentry(const char *path_str, int flags, int *err)
 {
@@ -25,22 +24,13 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 	struct dentry *src_dent;
 	struct inode *src_inode;
 	char xattr_val;
-	int err;
+	int err = -EINVAL;
 	char *ksrc, *kdest;
 
 	//if (!access_ok(VERIFY_READ, src, 1) || !access_ok(VERIFY_READ, dest, 1))
 	//	return -EINVAL;
-	err = strlen_user(src);
-	if (err <= 0)
-		return -EINVAL;
-	ksrc = kmalloc(err, GFP_USER);
-	err = strncpy_from_user(ksrc, src, err);
-
-	err = strlen_user(dest);
-	if (err <= 0)
-		return -EINVAL;
-	kdest = kmalloc(err, GFP_USER);
-	err = strncpy_from_user(kdest, dest, err);
+	ksrc = getname(src);
+	kdest = getname(dest);
 
 	printk(KERN_WARNING "COW: copying %s to %s", ksrc, kdest);
 
@@ -68,19 +58,11 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 		goto err;
 	}
 
-	/*
-	xattr_val = 100;
-	err = vfs_getxattr(src_dent, "user.ext4_cow", &xattr_val, sizeof(char));
-	if (err != sizeof(char)) {
-		printk(KERN_WARNING "COW: getxattr error");
-		goto err;
-	}
-	printk(KERN_WARNING "COW: xattr = %d", xattr_val);
-	*/
-
 	return 0;
-
 err:
-	printk(KERN_DEBUG "COW: returning error (%d)", err);
+	putname(kdest);
+	putname(ksrc);
+
+	printk(KERN_DEBUG "COW: returning (%d)", err);
 	return err;
 }
