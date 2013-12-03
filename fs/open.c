@@ -980,24 +980,22 @@ int ext4_cow_file(char* fname)
 	int err = 0;
 	mm_segment_t old_fs;
 	ssize_t  nread;
-	char xattr_val;
-	char *other_fname = "/data/local/tmp/file1";
 	struct dentry *dest_dentry = __get_dentry(fname, 0, &err);
-	struct dentry *src_dentry = __get_dentry(other_fname, 0, &err);
-
-	xattr_val = 0;
-	err = vfs_setxattr(dest_dentry, "user.ext4_cow", &xattr_val, sizeof(char), 0);
-	err = vfs_setxattr(src_dentry, "user.ext4_cow", &xattr_val, sizeof(char), 0);
 
 	printk(KERN_WARNING "COW: copying file on write (%s)", fname);
 
+	err = vfs_removexattr(dest_dentry, "user.ext4_cow");
+	if (err < 0) {
+		printk(KERN_WARNING "COW: removexattr error (%d)", err);
+		return err;
+	}
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	fd_orig = sys_open(other_fname, O_RDONLY, 0);
+	fd_orig = sys_open(fname, O_RDONLY, 0);
 	if (fd_orig < 0) {
 		printk(KERN_WARNING "COW: couldn't open fd_orig (%d)", fd_orig);
-		return -1;
+		return fd_orig;
 	}
 
 	mutex_lock_nested(&dest_dentry->d_parent->d_inode->i_mutex, I_MUTEX_PARENT);
@@ -1010,7 +1008,7 @@ int ext4_cow_file(char* fname)
 	fd_new = sys_open(fname, O_WRONLY|O_CREAT, 0644);
 	if (fd_new < 0) {
 		printk(KERN_WARNING "COW: couldn't open fd_new");
-		err = -1;
+		err = fd_new;
 	}
 
 	while (nread = sys_read(fd_orig, buf, sizeof buf), nread > 0) {
@@ -1028,15 +1026,8 @@ int ext4_cow_file(char* fname)
 	}
 	sys_close(fd_new);
 	sys_close(fd_orig);
-	printk(KERN_WARNING "COW: fd_new=%d", fd_new);
-	printk(KERN_WARNING "COW: fd_orig=%d", fd_orig);
 	set_fs(old_fs);
-	/* TODO:
-		copy the file
-		clear ext4_cow flag in the new inode
-		decrement i_nlink in the other inode
-		clear ext4_cow flag in the other inode if i_nlink goes to zero
-	*/
+	/* TODO: add xattr back if i_nlink >= 0 in the original inode */
 	return 0;
 }
 
@@ -1062,8 +1053,12 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 		size = vfs_getxattr(file_dent, "user.ext4_cow", &buf, sizeof(char));
 		if (unlikely(sizeof(char) == size) && (*buf == 1)
-			&& (mode & (O_RDWR | O_WRONLY))) {
-			ext4_cow_file(tmp);
+				&& (mode & (O_RDWR | O_WRONLY))) {
+			err = ext4_cow_file(tmp);
+			if (err < 0) {
+				putname(filename);
+				return err;
+			}
 		}
 non_ext4:
 
