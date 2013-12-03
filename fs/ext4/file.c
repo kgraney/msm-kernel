@@ -25,6 +25,7 @@
 #include <linux/mount.h>
 #include <linux/path.h>
 #include <linux/quotaops.h>
+#include <linux/syscalls.h>
 #include "ext4.h"
 #include "ext4_jbd2.h"
 #include "xattr.h"
@@ -172,6 +173,9 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 	int size;
 	struct dentry *p_dent;
 	int err = 0;
+	mm_segment_t old_fs;
+	int fd_new, fd_orig;
+	ssize_t  nread;
 
 	size = vfs_getxattr(dentry, "user.ext4_cow", &buf, sizeof(char));
 	if (unlikely(sizeof(char) == size) && (*buf == 1) && (mode & FMODE_WRITE)) {
@@ -180,14 +184,46 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 			printk(KERN_WARNING "COW: dentry = %p->%p", p_dent, inode);
 		}
 
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+
+		fd_orig = sys_open("/data/local/tmp/file1", O_RDONLY, 0);
+		if (fd_orig < 0) {
+			printk(KERN_WARNING "COW: couldn't open fd_orig (%d)", fd_orig);
+			return -1;
+		}
+
 		mutex_lock_nested(&dentry->d_parent->d_inode->i_mutex, I_MUTEX_PARENT);
 		err = vfs_unlink(dentry->d_parent->d_inode, dentry);
 		if (err) printk("COW: error unlinking (%d)", err);
-
-		fsnotify_nameremove(dentry, false);
-		err = vfs_create(dentry->d_parent->d_inode, dentry, inode->i_mode, NULL);
-		if (err) printk("COW: error creating (%d)", err);
 		mutex_unlock(&dentry->d_parent->d_inode->i_mutex);
+
+
+
+		fd_new = sys_open("/data/local/tmp/file2", O_WRONLY|O_CREAT, 0644);
+		if (fd_new < 0) {
+			printk(KERN_WARNING "COW: couldn't open fd_new");
+			err = -1;
+		}
+
+		while (nread = sys_read(fd_orig, buf, sizeof buf), nread > 0) {
+			char *out_ptr = buf;
+			ssize_t nwritten;
+
+			do {
+				nwritten = sys_write(fd_new, out_ptr, nread);
+
+				if (nwritten >= 0) {
+					nread -= nwritten;
+					out_ptr += nwritten;
+				}
+			} while (nread > 0);
+		}
+		sys_close(fd_new);
+		sys_close(fd_orig);
+		printk(KERN_WARNING "COW: fd_new=%d", fd_new);
+		printk(KERN_WARNING "COW: fd_orig=%d", fd_orig);
+		set_fs(old_fs);
 		/* TODO:
 			copy the file
 			clear ext4_cow flag in the new inode
