@@ -30,6 +30,7 @@
 #include <linux/fs_struct.h>
 #include <linux/ima.h>
 #include <linux/dnotify.h>
+#include <linux/xattr.h>
 
 #include "internal.h"
 
@@ -970,6 +971,75 @@ struct file *file_open_root(struct dentry *dentry, struct vfsmount *mnt,
 }
 EXPORT_SYMBOL(file_open_root);
 
+struct dentry* __get_dentry(const char *path_str, int flags, int *err);
+
+int ext4_cow_file(char* fname)
+{
+	int fd_new, fd_orig;
+	char buf[64];
+	int err = 0;
+	mm_segment_t old_fs;
+	ssize_t  nread;
+	char xattr_val;
+	char *other_fname = "/data/local/tmp/file1";
+	struct dentry *dest_dentry = __get_dentry(fname, 0, &err);
+	struct dentry *src_dentry = __get_dentry(other_fname, 0, &err);
+
+	xattr_val = 0;
+	err = vfs_setxattr(dest_dentry, "user.ext4_cow", &xattr_val, sizeof(char), 0);
+	err = vfs_setxattr(src_dentry, "user.ext4_cow", &xattr_val, sizeof(char), 0);
+
+	printk(KERN_WARNING "COW: copying file on write (%s)", fname);
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	fd_orig = sys_open(other_fname, O_RDONLY, 0);
+	if (fd_orig < 0) {
+		printk(KERN_WARNING "COW: couldn't open fd_orig (%d)", fd_orig);
+		return -1;
+	}
+
+	mutex_lock_nested(&dest_dentry->d_parent->d_inode->i_mutex, I_MUTEX_PARENT);
+	err = vfs_unlink(dest_dentry->d_parent->d_inode, dest_dentry);
+	if (err) printk("COW: error unlinking (%d)", err);
+	mutex_unlock(&dest_dentry->d_parent->d_inode->i_mutex);
+
+
+
+	fd_new = sys_open(fname, O_WRONLY|O_CREAT, 0644);
+	if (fd_new < 0) {
+		printk(KERN_WARNING "COW: couldn't open fd_new");
+		err = -1;
+	}
+
+	while (nread = sys_read(fd_orig, buf, sizeof buf), nread > 0) {
+		char *out_ptr = buf;
+		ssize_t nwritten;
+
+		do {
+			nwritten = sys_write(fd_new, out_ptr, nread);
+
+			if (nwritten >= 0) {
+				nread -= nwritten;
+				out_ptr += nwritten;
+			}
+		} while (nread > 0);
+	}
+	sys_close(fd_new);
+	sys_close(fd_orig);
+	printk(KERN_WARNING "COW: fd_new=%d", fd_new);
+	printk(KERN_WARNING "COW: fd_orig=%d", fd_orig);
+	set_fs(old_fs);
+	/* TODO:
+		copy the file
+		clear ext4_cow flag in the new inode
+		decrement i_nlink in the other inode
+		clear ext4_cow flag in the other inode if i_nlink goes to zero
+	*/
+	return 0;
+}
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
@@ -977,7 +1047,26 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	char *tmp = getname(filename);
 	int fd = PTR_ERR(tmp);
 
+	struct dentry* file_dent;
+	int size;
+	int err;
+	char buf[64];
+
 	if (!IS_ERR(tmp)) {
+
+		file_dent = __get_dentry(tmp, 0, &err);
+		if (!file_dent)
+			goto non_ext4;
+		if (strcmp(file_dent->d_inode->i_sb->s_type->name, "ext4"))
+			goto non_ext4;
+
+		size = vfs_getxattr(file_dent, "user.ext4_cow", &buf, sizeof(char));
+		if (unlikely(sizeof(char) == size) && (*buf == 1)
+			&& (mode & (O_RDWR | O_WRONLY))) {
+			ext4_cow_file(tmp);
+		}
+non_ext4:
+
 		fd = get_unused_fd_flags(flags);
 		if (fd >= 0) {
 			struct file *f = do_filp_open(dfd, tmp, &op, lookup);

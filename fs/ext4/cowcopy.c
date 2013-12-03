@@ -6,7 +6,7 @@
 #include <linux/path.h>
 #include <linux/xattr.h>
 
-static struct dentry* __get_dentry(const char *path_str, int flags, int *err)
+struct dentry* __get_dentry(const char *path_str, int flags, int *err)
 {
 	struct path path, *relative = &current->fs->pwd;
 

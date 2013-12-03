@@ -20,12 +20,10 @@
 
 #include <linux/time.h>
 #include <linux/fs.h>
-#include <linux/fsnotify.h>
 #include <linux/jbd2.h>
 #include <linux/mount.h>
 #include <linux/path.h>
 #include <linux/quotaops.h>
-#include <linux/syscalls.h>
 #include "ext4.h"
 #include "ext4_jbd2.h"
 #include "xattr.h"
@@ -166,71 +164,8 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	struct vfsmount *mnt = filp->f_path.mnt;
-	struct dentry *dentry = filp->f_path.dentry;
-	mode_t mode = filp->f_mode;
 	struct path path;
 	char buf[64], *cp;
-	int size;
-	struct dentry *p_dent;
-	int err = 0;
-	mm_segment_t old_fs;
-	int fd_new, fd_orig;
-	ssize_t  nread;
-
-	size = vfs_getxattr(dentry, "user.ext4_cow", &buf, sizeof(char));
-	if (unlikely(sizeof(char) == size) && (*buf == 1) && (mode & FMODE_WRITE)) {
-		printk(KERN_WARNING "COW: opening inode %p with ext4_cow set, copying file", inode);
-		list_for_each_entry(p_dent, &inode->i_dentry, d_alias) {
-			printk(KERN_WARNING "COW: dentry = %p->%p", p_dent, inode);
-		}
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		fd_orig = sys_open("/data/local/tmp/file1", O_RDONLY, 0);
-		if (fd_orig < 0) {
-			printk(KERN_WARNING "COW: couldn't open fd_orig (%d)", fd_orig);
-			return -1;
-		}
-
-		mutex_lock_nested(&dentry->d_parent->d_inode->i_mutex, I_MUTEX_PARENT);
-		err = vfs_unlink(dentry->d_parent->d_inode, dentry);
-		if (err) printk("COW: error unlinking (%d)", err);
-		mutex_unlock(&dentry->d_parent->d_inode->i_mutex);
-
-
-
-		fd_new = sys_open("/data/local/tmp/file2", O_WRONLY|O_CREAT, 0644);
-		if (fd_new < 0) {
-			printk(KERN_WARNING "COW: couldn't open fd_new");
-			err = -1;
-		}
-
-		while (nread = sys_read(fd_orig, buf, sizeof buf), nread > 0) {
-			char *out_ptr = buf;
-			ssize_t nwritten;
-
-			do {
-				nwritten = sys_write(fd_new, out_ptr, nread);
-
-				if (nwritten >= 0) {
-					nread -= nwritten;
-					out_ptr += nwritten;
-				}
-			} while (nread > 0);
-		}
-		sys_close(fd_new);
-		sys_close(fd_orig);
-		printk(KERN_WARNING "COW: fd_new=%d", fd_new);
-		printk(KERN_WARNING "COW: fd_orig=%d", fd_orig);
-		set_fs(old_fs);
-		/* TODO:
-			copy the file
-			clear ext4_cow flag in the new inode
-			decrement i_nlink in the other inode
-			clear ext4_cow flag in the other inode if i_nlink goes to zero
-		*/
-	}
 
 	if (unlikely(!(sbi->s_mount_flags & EXT4_MF_MNTDIR_SAMPLED) &&
 		     !(sb->s_flags & MS_RDONLY))) {
