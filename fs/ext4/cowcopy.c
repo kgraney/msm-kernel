@@ -27,8 +27,6 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 	int err = -EINVAL;
 	char *ksrc, *kdest;
 
-	//if (!access_ok(VERIFY_READ, src, 1) || !access_ok(VERIFY_READ, dest, 1))
-	//	return -EINVAL;
 	ksrc = getname(src);
 	kdest = getname(dest);
 
@@ -39,17 +37,23 @@ SYSCALL_DEFINE2(ext4_cowcopy, const char __user, *src, const char __user, *dest)
 	src_inode = src_dent->d_inode;
 	if (!src_inode) goto err;
 
-	if (S_ISDIR(src_inode->i_mode) || !S_ISREG(src_inode->i_mode))
-		return -EPERM;
+	if (S_ISDIR(src_inode->i_mode) || !S_ISREG(src_inode->i_mode)) {
+		err = -EPERM;
+		goto err;
+	}
 
-	/* TODO: check fs type of src_inode is ext4 */
-	if (strcmp(src_inode->i_sb->s_type->name, "ext4"))
-		return -EOPNOTSUPP;
+	if (atomic_read(&src_inode->i_writecount) > 0) {
+		err = -EPERM;
+		goto err;
+	}
+
+	if (strcmp(src_inode->i_sb->s_type->name, "ext4")) {
+		err = -EOPNOTSUPP;
+		goto err;
+	}
 
 	err = sys_linkat(AT_FDCWD, src, AT_FDCWD, dest, 0);
 	if (err) goto err;
-
-	printk(KERN_WARNING "COW: foo");
 
 	xattr_val = 1;
 	err = vfs_setxattr(src_dent, "user.ext4_cow", &xattr_val, sizeof(char), 0);
